@@ -563,6 +563,19 @@ body {
     border-color 0.15s ease;
 }
 
+@media (max-width: 639px) {
+  .inv-slot {
+    width: 2.8rem;
+    height: 2.8rem;
+  }
+  .inv-icon {
+    inset: 0.45rem 0.45rem 0.75rem;
+  }
+  .inv-name {
+    font-size: 7.5px;
+  }
+}
+
 .inv-slot:hover {
   transform: translateY(-2px);
   background: rgba(29, 29, 31, 0.08);
@@ -681,6 +694,52 @@ body {
     0 0 6px rgba(255, 255, 255, 0.9);
   font-variant-numeric: tabular-nums;
   animation: dmg-number 1s ease-out forwards;
+}
+
+.dmg-number.is-heal {
+  color: #16a34a;
+}
+
+.item-heal {
+  animation: item-heal 0.7s cubic-bezier(0.3, 1.6, 0.5, 1) forwards;
+}
+
+@keyframes item-heal {
+  0% {
+    opacity: 0;
+    scale: 0.4;
+    rotate: -20deg;
+  }
+  25% {
+    opacity: 1;
+    scale: 1.15;
+    rotate: 8deg;
+  }
+  60% {
+    opacity: 1;
+    scale: 1;
+    rotate: 0deg;
+  }
+  100% {
+    opacity: 0;
+    scale: 0.9;
+    translate: 0 -24px;
+  }
+}
+
+.inv-divider {
+  width: 1px;
+  margin: 0.4rem 0.15rem;
+  background: rgba(29, 29, 31, 0.12);
+}
+
+.inv-slot.is-heal.is-active {
+  border-color: #22c55e;
+  background: rgba(34, 197, 94, 0.12);
+}
+
+.inv-slot.is-heal.is-active .inv-name {
+  color: #16a34a;
 }
 
 @keyframes dmg-number {

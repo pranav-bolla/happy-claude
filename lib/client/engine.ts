@@ -67,7 +67,7 @@ import { Fx } from "./fx";
 import { Net, type ConnStatus } from "./net";
 import { ITEMS, ITEM_ORDER, type ItemId } from "../items";
 import { ITEM_ART } from "./itemArt";
-import { BROKEN_LINES, GRAB_LINES, IMPACT_LINES, SCARED_LINES, pick } from "./lines";
+import { BROKEN_LINES, GRAB_LINES, HEAL_LINES, IMPACT_LINES, SCARED_LINES, pick } from "./lines";
 import { Sfx } from "./sound";
 
 export type Expression = "idle" | "curious" | "grabbed" | "woozy" | "smashed" | "dead";
@@ -804,7 +804,8 @@ export class Engine {
       this.say(pick(IMPACT_LINES), 1200);
     }
     if (this.hold && hit.speed > 600) navigator.vibrate?.(12);
-    const dmg = this.alive ? wallDamage(hit.speed) : 0;
+    const free = !this.hold && !this.remote;
+    const dmg = this.alive && free ? wallDamage(hit.speed) : 0;
     if (dmg >= 1 && now - this.lastWallNumber > 250) {
       this.lastWallNumber = now;
       this.damageNumber(dmg, "#D97757");
@@ -1006,6 +1007,10 @@ export class Engine {
     }
     const now = performance.now();
     if ((this.readyAt.get(def.id) ?? 0) > now) return;
+    if (def.heal && this.hp >= MAX_HP) {
+      this.popWord("already full", sx, sy, "#6B6B6B", true);
+      return;
+    }
 
     const rp = this.renderPos();
     const px = this.toScreenX(rp.x);
@@ -1033,14 +1038,18 @@ export class Engine {
       const c = this.cursors.get(e.who.id);
       if (c) c.releasedAt = performance.now();
       this.playUse(e.item, sx, sy, e.who.color, 0.6);
-      if (e.phase === "hit") this.showTag(`${e.who.name} used the ${ITEMS[e.item].name.toLowerCase()}`, e.who.color);
+      if (e.phase === "hit") {
+        const verb = e.heal > 0 ? "healed Claude with the" : "used the";
+        this.showTag(`${e.who.name} ${verb} ${ITEMS[e.item].name}`, e.who.color);
+      }
     }
     if (e.world) {
       // item hits are server-authored: drop any stale local authority
-      this.authority = null;
+      if (!e.heal) this.authority = null;
       this.applySnapshot(e.world);
     }
     if (e.damage > 0) this.damageNumber(e.damage, e.who.color);
+    if (e.heal > 0) this.damageNumber(-e.heal, "#22C55E");
   }
 
   private playUse(item: ItemId, sx: number, sy: number, color: string, vol: number): void {
@@ -1101,6 +1110,18 @@ export class Engine {
         setTimeout(() => this.removeBomb(el), (def.fuseMs ?? 900) + 1500);
         break;
       }
+      case "tokens":
+      case "water": {
+        const big = item === "water";
+        const el = this.sprite(item, px + (Math.random() - 0.5) * this.r * 0.6, py - this.r * 0.2, this.r * (big ? 0.8 : 0.5), "item-heal");
+        setTimeout(() => el.remove(), 700);
+        this.fx.heal(px, py, this.r, big);
+        this.sound.item(item, vol);
+        this.kickJelly(0, -1, big ? 8 : 3);
+        if (big) this.popWord(def.word, px, py - this.r * 1.05, "#15803D");
+        if (big || Math.random() < 0.2) this.say(pick(HEAL_LINES), 1200);
+        break;
+      }
     }
   }
 
@@ -1152,8 +1173,8 @@ export class Engine {
   private damageNumber(n: number, color: string): void {
     const rp = this.renderPos();
     const el = document.createElement("div");
-    el.className = "dmg-number";
-    el.textContent = `-${Math.max(1, Math.round(n))}`;
+    el.className = n < 0 ? "dmg-number is-heal" : "dmg-number";
+    el.textContent = n < 0 ? `+${Math.max(1, Math.round(-n))}` : `-${Math.max(1, Math.round(n))}`;
     el.style.setProperty("--c", color);
     el.style.setProperty("--dx", `${(Math.random() - 0.5) * 60}px`);
     el.style.left = `${this.toScreenX(rp.x) + (Math.random() - 0.5) * this.r}px`;

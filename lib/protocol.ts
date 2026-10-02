@@ -86,7 +86,7 @@ export interface Stats {
   bestKiller: PlayerIdentity | null;
 }
 
-export const MAX_HP = 100;
+export const MAX_HP = 175;
 
 /** Wall impacts below this speed don't hurt. */
 export const HURT_MIN_SPEED = 900;
@@ -118,6 +118,8 @@ export interface UsedEvent {
   y: number;
   phase: "hit" | "arm" | "boom";
   damage: number;
+  /** HP actually restored (healing items) */
+  heal: number;
   world: Snapshot | null;
 }
 
@@ -139,7 +141,25 @@ export interface Round {
   contributors: string[];
   /** true if this kill set the time to beat */
   record: boolean;
+  /** who did what this life; filled in when he dies */
+  board: Board | null;
 }
+
+export interface BoardEntry extends PlayerIdentity {
+  /** HP removed (damage list) or restored (healing list) */
+  amount: number;
+}
+
+/** End-of-life leaderboard, each list sorted high → low. */
+export interface Board {
+  damage: BoardEntry[];
+  healing: BoardEntry[];
+  totalDamage: number;
+  totalHealing: number;
+}
+
+/** Entries kept per list, so most players can find their own row. */
+export const BOARD_SIZE = 20;
 
 export interface Welcome {
   you: PlayerIdentity;
@@ -154,7 +174,7 @@ export const REVIVE_LOCK_MS = 1500;
 /** Nobody revives him → he comes back on his own. */
 export const AUTO_REVIVE_MS = 20000;
 
-export type FeedKind = "fly" | "speed" | "crowd" | "join" | "slip" | "hurt" | "revive" | "knock";
+export type FeedKind = "fly" | "speed" | "crowd" | "join" | "slip" | "hurt" | "revive" | "knock" | "heal";
 
 export interface FeedItem {
   id: number;

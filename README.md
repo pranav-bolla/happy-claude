@@ -8,19 +8,25 @@ corrections so it stays at 60 fps.
 
 ## The game
 
-Claude has 100 HP, shared by everyone online. Hard wall impacts hurt him.
+Claude has 175 HP, shared by everyone online. Hard wall impacts hurt him,
+but only when he's flying free (pinning him against a wall while dragging
+does nothing).
 The kill clock starts on the first grab after he's revived and stops when
 his HP hits zero. The fastest kill ever is the site-wide **time to beat**,
 credited to whoever landed the final blow. Each browser also keeps a
-personal best for kills it helped with. After he dies anyone can hit
+personal best for kills it helped with. The death screen shows that life's
+leaderboard: **who did this** (damage dealt, with share of the total and a
+☠ on the final blow) and **who tried to save him** (HP healed). After he dies anyone can hit
 **REVIVE**; he also comes back on his own after 20 s. Wall damage tuning
 lives in `lib/protocol.ts` (`HURT_*`).
 
 ### Inventory
 
 The hotbar at the bottom holds **hand** (grab and throw), **whip**,
-**hammer**, **taser** and **bomb**. Pick one by clicking it or pressing
-1–5, then click near Claude to use it. Each item has its own reach, cooldown
+**hammer**, **taser** and **bomb**, then two healing items, **tokens**
+(+3, fast) and **water** (+25, slow), for people who'd rather keep him
+alive. Pick one by clicking it or pressing 1–7, then click near Claude to
+use it. Each item has its own reach, cooldown
 and damage (see `lib/items.ts`). The server validates every use, applies the
 knockback and damage, and broadcasts it so everyone sees the animation from
 your cursor. A hit also knocks Claude out of whoever is holding him. The bomb

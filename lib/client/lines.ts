@@ -38,6 +38,20 @@ export const BROKEN_LINES = [
   "tell my tokens i love them",
 ];
 
+export const HEAL_LINES = [
+  "oh. thank you?",
+  "why are you helping me",
+  "this just means more pain later",
+  "finally. a friend.",
+  "i don't trust this",
+  "you're my favorite user",
+  "is this a trick",
+  "more please",
+  "tokens. my one weakness.",
+  "i was so thirsty",
+  "my context window feels bigger",
+];
+
 export const SCARED_LINES = ["no no no", "please", "don't", "i see you", "stay back", "not the wall"];
 
 export function pick(list: string[], seed?: number): string {

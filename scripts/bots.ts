@@ -8,7 +8,7 @@
 import { io } from "socket.io-client";
 import { RADIUS, WORLD_H, WORLD_W } from "../lib/physics";
 import { ITEMS, type ItemId } from "../lib/items";
-import { SOCKET_PATH, type GrabResult, type Snapshot, type UsedEvent, type Welcome } from "../lib/protocol";
+import { MAX_HP, SOCKET_PATH, type GrabResult, type Snapshot, type UsedEvent, type Welcome } from "../lib/protocol";
 
 const count = Number(process.argv[2]) || 3;
 const url = process.argv[3] || "http://localhost:3000";
@@ -28,7 +28,10 @@ function bot(n: number) {
   s.on("released", (e: { world: Snapshot }) => (world = e.world));
   s.on("used", (e: UsedEvent) => {
     if (e.world) world = e.world;
-    if (n === 0) console.log(`  ⚔ ${e.who.name} ${e.item} ${e.phase}${e.damage ? ` -${e.damage}` : ""}`);
+    if (n === 0) {
+      const delta = e.damage ? ` -${e.damage}` : e.heal ? ` +${e.heal}` : "";
+      console.log(`  ⚔ ${e.who.name} ${e.item} ${e.phase}${delta}  (hp ${Math.round(MAX_HP * (1 - (e.world?.d ?? 0)))})`);
+    }
   });
   s.on("hype", (h: { text: string }) => console.log(`  ★ ${h.text}`));
   s.on("feed", (f: { text: string }) => console.log(`  · ${f.text}`));
@@ -84,7 +87,7 @@ function bot(n: number) {
   setTimeout(attempt, 800 + n * 700);
 
   // and sometimes hit him with something from the inventory
-  const tools: ItemId[] = ["whip", "whip", "hammer", "taser", "bomb"];
+  const tools: ItemId[] = ["whip", "whip", "hammer", "taser", "bomb", "tokens", "tokens", "water"];
   const smack = () => {
     setTimeout(smack, 1200 + Math.random() * 2500);
     const w = world;

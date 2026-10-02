@@ -16,7 +16,10 @@ import {
   AUTO_REVIVE_MS,
   MAX_HP,
   REVIVE_LOCK_MS,
+  BOARD_SIZE,
   wallDamage,
+  type Board,
+  type BoardEntry,
   type Round,
   type UseInput,
   type UsedEvent,
@@ -85,6 +88,7 @@ function newRound(id: number): Round {
     killer: null,
     contributors: [],
     record: false,
+    board: null,
   };
 }
 
@@ -123,6 +127,8 @@ export class World {
   private wallHits: number[] = [];
   private cooldowns = new Map<string, number>();
   private seq = 0;
+  /** per-player damage / healing this life (survives disconnects) */
+  private tally = new Map<string, { who: PlayerIdentity; dmg: number; heal: number }>();
 
   constructor(
     private io: Server,
@@ -342,6 +348,12 @@ export class World {
     if (Math.hypot(u.x - b.x, u.y - b.y) > reach) return;
     player.readyAt.set(def.id, now + def.cooldownMs);
 
+    if (def.heal) {
+      const healed = this.heal(def.heal, player);
+      this.emitUsed(player, u, "hit", 0, true, healed);
+      return;
+    }
+
     if (this.round.startedAt === null) {
       this.round = { ...this.round, startedAt: now };
       this.io.emit("round", this.round);
@@ -417,7 +429,14 @@ export class World {
     this.epoch += 1;
   }
 
-  private emitUsed(player: Player, u: UseInput, phase: UsedEvent["phase"], damage: number, withWorld: boolean): void {
+  private emitUsed(
+    player: Player,
+    u: UseInput,
+    phase: UsedEvent["phase"],
+    damage: number,
+    withWorld: boolean,
+    heal = 0,
+  ): void {
     const ev: UsedEvent = {
       id: ++this.seq,
       item: u.item,
@@ -426,6 +445,7 @@ export class World {
       y: r1(u.y),
       phase,
       damage,
+      heal: r1(heal),
       world: withWorld ? this.snapshot() : null,
     };
     this.io.emit("used", ev);
@@ -562,9 +582,12 @@ export class World {
   // ── viral events ──────────────────────────────────────────────────────
 
   private onWall(hit: WallHit): void {
+    // Only free-flying impacts hurt; pinning him against a wall while
+    // dragging must not grind his HP down.
+    if (this.held) return;
     const dmg = wallDamage(hit.speed);
-    if (dmg > 0) this.hurt(dmg, this.held?.player ?? this.lastThrower);
-    if (this.held || hit.speed < 450) return;
+    if (dmg > 0) this.hurt(dmg, this.lastThrower);
+    if (hit.speed < 450) return;
     const now = Date.now();
     this.wallHits.push(now);
     this.wallHits = this.wallHits.filter((t) => now - t < 1600);
@@ -585,13 +608,56 @@ export class World {
     if (!this.round.alive || amount <= 0) return;
     const before = this.hp;
     this.hp = Math.max(0, this.hp - amount);
-    if (attacker && !this.round.contributors.includes(attacker.id)) {
-      this.round.contributors.push(attacker.id);
+    if (attacker) {
+      if (!this.round.contributors.includes(attacker.id)) this.round.contributors.push(attacker.id);
+      this.score(attacker).dmg += before - this.hp;
     }
     if (before > MAX_HP / 2 && this.hp <= MAX_HP / 2 && this.cooldown("hurt", 15000)) {
       this.feed("hurt", "Claude is not doing so well");
     }
     if (this.hp <= 0) this.die(attacker);
+  }
+
+  /** Returns HP actually restored. */
+  private heal(amount: number, healer: Player): number {
+    if (!this.round.alive || amount <= 0) return 0;
+    const before = this.hp;
+    this.hp = Math.min(MAX_HP, this.hp + amount);
+    const healed = this.hp - before;
+    if (healed > 0) {
+      this.score(healer).heal += healed;
+      if (before < MAX_HP * 0.15 && this.cooldown("clutch", 12000)) {
+        this.feed("heal", `${healer.name} is keeping Claude alive. barely.`, healer.color);
+      } else if (this.cooldown("heal", 10000)) {
+        this.feed("heal", `${healer.name} is helping Claude`, healer.color);
+      }
+    }
+    return healed;
+  }
+
+  private score(p: Player) {
+    let s = this.tally.get(p.id);
+    if (!s) {
+      s = { who: this.identity(p), dmg: 0, heal: 0 };
+      this.tally.set(p.id, s);
+    }
+    return s;
+  }
+
+  private buildBoard(): Board {
+    const all = [...this.tally.values()];
+    const list = (key: "dmg" | "heal"): BoardEntry[] =>
+      all
+        .filter((s) => s[key] >= 0.5)
+        .sort((a, b) => b[key] - a[key])
+        .slice(0, BOARD_SIZE)
+        .map((s) => ({ ...s.who, amount: Math.round(s[key]) }));
+    return {
+      damage: list("dmg"),
+      healing: list("heal"),
+      totalDamage: Math.round(all.reduce((n, s) => n + s.dmg, 0)),
+      totalHealing: Math.round(all.reduce((n, s) => n + s.heal, 0)),
+    };
   }
 
   private die(killer: Player | null): void {
@@ -606,6 +672,7 @@ export class World {
       killMs,
       killer: killerId,
       record,
+      board: this.buildBoard(),
     };
     if (this.held) this.forceRelease("timeout");
     this.homing = false;
@@ -619,6 +686,7 @@ export class World {
     this.hp = MAX_HP;
     this.lastThrower = null;
     this.round = newRound(r.id + 1);
+    this.tally.clear();
     Object.assign(this.body, createBody());
     this.epoch += 1;
     this.lastActiveAt = Date.now();

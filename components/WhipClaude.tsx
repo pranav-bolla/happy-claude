@@ -45,6 +45,7 @@ export default function WhipClaude() {
   const [damage, setDamage] = useState(0);
   const [hp, setHp] = useState(MAX_HP);
   const [round, setRound] = useState<Round | null>(null);
+  const [myId, setMyId] = useState<string | null>(null);
   const [myBest, setMyBest] = useState<number | null>(null);
   const [helped, setHelped] = useState(false);
   const [personalBest, setPersonalBest] = useState(false);
@@ -101,6 +102,7 @@ export default function WhipClaude() {
         onHp: setHp,
         onRound: (r, myId) => {
           setRound(r);
+          setMyId(myId);
           if (r.alive || r.killMs === null || seenDeath.current === r.id) return;
           seenDeath.current = r.id;
           // Your personal best counts any kill you dealt damage in.
@@ -192,6 +194,7 @@ export default function WhipClaude() {
         myBest={myBest}
         personalBest={personalBest}
         helped={helped}
+        myId={myId}
         now={now}
         onRevive={revive}
       />

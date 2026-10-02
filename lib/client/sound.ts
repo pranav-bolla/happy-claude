@@ -161,6 +161,13 @@ export class Sfx {
         this.burst(t, 0.9, "lowpass", 500, 0.8 * vol);
         this.tone(t, "sine", 90, 30, 0.7, 0.6 * vol);
         break;
+      case "tokens":
+        this.tone(t, "sine", 660, 700, 0.12, 0.12 * vol);
+        this.tone(t + 0.07, "sine", 990, 1040, 0.16, 0.1 * vol);
+        break;
+      case "water":
+        [523, 659, 784, 1047].forEach((f, i) => this.tone(t + i * 0.07, "triangle", f, f * 1.01, 0.22, 0.13 * vol));
+        break;
       case "fuse":
         this.burst(t, 0.6, "highpass", 4000, 0.06 * vol);
         break;

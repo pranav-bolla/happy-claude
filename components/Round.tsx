@@ -2,7 +2,15 @@
 
 import { AnimatePresence, motion, useAnimationControls } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
-import { AUTO_REVIVE_MS, MAX_HP, REVIVE_LOCK_MS, type Round, type Stats } from "@/lib/protocol";
+import {
+  AUTO_REVIVE_MS,
+  MAX_HP,
+  REVIVE_LOCK_MS,
+  type Board,
+  type BoardEntry,
+  type Round,
+  type Stats,
+} from "@/lib/protocol";
 
 export function formatKill(ms: number | null | undefined): string {
   if (ms === null || ms === undefined) return "—";
@@ -32,6 +40,8 @@ export function HealthBar({ hp, round, now }: { hp: number; round: Round | null;
   useEffect(() => {
     if (hp < prev.current) {
       void controls.start({ x: [0, -6, 6, -3, 0], transition: { duration: 0.28 } });
+    } else if (hp > prev.current && prev.current > 0) {
+      void controls.start({ scale: [1, 1.04, 1], transition: { duration: 0.3 } });
     }
     prev.current = hp;
   }, [hp, controls]);
@@ -44,7 +54,8 @@ export function HealthBar({ hp, round, now }: { hp: number; round: Round | null;
       : round.startedAt === null
         ? 0
         : now() - round.startedAt;
-  const color = hp > 50 ? "#22C55E" : hp > 25 ? "#F59E0B" : "#EF4444";
+  const frac = hp / MAX_HP;
+  const color = frac > 0.5 ? "#22C55E" : frac > 0.25 ? "#F59E0B" : "#EF4444";
   const lit = Math.ceil((hp / MAX_HP) * SEGMENTS);
 
   return (
@@ -74,12 +85,119 @@ export function HealthBar({ hp, round, now }: { hp: number; round: Round | null;
   );
 }
 
+const SHOWN = 3;
+
+function BoardList({
+  title,
+  total,
+  unit,
+  entries,
+  color,
+  myId,
+  killerId,
+  empty,
+}: {
+  title: string;
+  total: number;
+  unit: string;
+  entries: BoardEntry[];
+  color: string;
+  myId: string | null;
+  killerId?: string | null;
+  empty: string;
+}) {
+  const top = entries[0]?.amount || 1;
+  const myIndex = entries.findIndex((e) => e.id === myId);
+  const rows = entries.slice(0, SHOWN).map((e, i) => ({ e, rank: i + 1 }));
+  if (myIndex >= SHOWN) rows.push({ e: entries[myIndex], rank: myIndex + 1 });
+
+  return (
+    <div>
+      <div className="flex items-baseline justify-between font-mono text-[10px] tracking-[0.16em]">
+        <span className="font-bold" style={{ color }}>
+          {title}
+        </span>
+        {total > 0 && (
+          <span className="text-white/40">
+            {total} HP {unit}
+          </span>
+        )}
+      </div>
+      {rows.length === 0 ? (
+        <p className="mt-1.5 font-mono text-[11px] italic text-white/40">{empty}</p>
+      ) : (
+        <ol className="mt-1.5 space-y-1">
+          {rows.map(({ e, rank }, i) => {
+            const me = e.id === myId;
+            return (
+              <li key={e.id}>
+                {i === SHOWN && <div className="mb-1 text-center font-mono text-[9px] leading-none text-white/30">···</div>}
+                <div
+                  className={`relative flex items-center gap-2 overflow-hidden px-1.5 py-[3px] font-mono text-[11px] ${me ? "outline outline-1 outline-white/40" : ""}`}
+                >
+                  <motion.div
+                    className="absolute inset-y-0 left-0 opacity-25"
+                    style={{ background: color }}
+                    initial={{ width: 0 }}
+                    animate={{ width: `${(e.amount / top) * 100}%` }}
+                    transition={{ duration: 0.6, delay: 0.4 + i * 0.08, ease: "easeOut" }}
+                  />
+                  <span className="relative w-4 text-white/40 tabular-nums">{rank}</span>
+                  <span className="relative h-2 w-2 shrink-0" style={{ background: e.color }} />
+                  <span className={`relative min-w-0 flex-1 truncate ${me ? "font-bold text-white" : "text-white/85"}`}>
+                    {e.name}
+                    {me && <span className="text-white/50"> (you)</span>}
+                    {e.id === killerId && <span title="final blow"> ☠</span>}
+                  </span>
+                  <span className="relative font-bold tabular-nums text-white">{e.amount}</span>
+                  {total > 0 && (
+                    <span className="relative w-8 text-right tabular-nums text-white/40">
+                      {Math.round((e.amount / total) * 100)}%
+                    </span>
+                  )}
+                </div>
+              </li>
+            );
+          })}
+        </ol>
+      )}
+    </div>
+  );
+}
+
+function Leaderboard({ board, killerId, myId }: { board: Board; killerId: string | null; myId: string | null }) {
+  return (
+    <div className="mt-4 space-y-3 border-t border-white/10 pt-3">
+      <BoardList
+        title="WHO DID THIS"
+        total={board.totalDamage}
+        unit="dealt"
+        entries={board.damage}
+        color="#D97757"
+        myId={myId}
+        killerId={killerId}
+        empty="the wall did it. alone."
+      />
+      <BoardList
+        title="WHO TRIED TO SAVE HIM"
+        total={board.totalHealing}
+        unit="healed"
+        entries={board.healing}
+        color="#22C55E"
+        myId={myId}
+        empty="nobody tried to save him."
+      />
+    </div>
+  );
+}
+
 export function DeathScreen({
   round,
   stats,
   myBest,
   personalBest,
   helped,
+  myId,
   now,
   onRevive,
 }: {
@@ -88,6 +206,7 @@ export function DeathScreen({
   myBest: number | null;
   personalBest: boolean;
   helped: boolean;
+  myId: string | null;
   now: () => number;
   onRevive: () => void;
 }) {
@@ -129,7 +248,7 @@ export function DeathScreen({
             initial={{ y: 30, scale: 0.9, rotate: -2 }}
             animate={{ y: 0, scale: 1, rotate: 0 }}
             transition={{ type: "spring", stiffness: 380, damping: 22, delay: 0.25 }}
-            className="pointer-events-auto w-full max-w-[340px] bg-ink p-5 text-cream shadow-[8px_8px_0_rgba(217,119,87,0.9)]"
+            className="pointer-events-auto max-h-[calc(100dvh-12rem)] w-full max-w-[360px] overflow-y-auto bg-ink p-5 text-cream shadow-[8px_8px_0_rgba(217,119,87,0.9)]"
           >
             <p className="font-mono text-[11px] font-bold tracking-[0.24em] text-claude">☠ CLAUDE IS DEAD</p>
             <p className="mt-2 font-mono text-[10px] tracking-[0.18em] text-white/50">KILLED IN</p>
@@ -169,6 +288,8 @@ export function DeathScreen({
                 </p>
               )}
             </div>
+
+            {round.board && <Leaderboard board={round.board} killerId={round.killer?.id ?? null} myId={myId} />}
 
             <div className="mt-4 flex gap-2">
               <button

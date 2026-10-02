@@ -13,6 +13,8 @@ interface Particle {
   size: number;
   color: string;
   spark: boolean;
+  /** healing "+" that drifts upward instead of falling */
+  plus?: boolean;
 }
 
 interface Ring {
@@ -125,6 +127,27 @@ export class Fx {
     }
     this.rings.push({ x, y, life: 0.6, max: 0.6, size: 260, color: "#1D1D1F" });
     this.glows.push({ x, y, life: 0.5, max: 0.5, size: 380 });
+  }
+
+  /** Green "+" sparkles rising off him. */
+  heal(x: number, y: number, r: number, big: boolean): void {
+    const count = big ? 22 : 7;
+    for (let i = 0; i < count; i++) {
+      const max = 0.7 + Math.random() * 0.6;
+      this.particles.push({
+        x: x + (Math.random() - 0.5) * r * 1.4,
+        y: y + (Math.random() - 0.2) * r,
+        vx: (Math.random() - 0.5) * 40,
+        vy: -60 - Math.random() * (big ? 160 : 90),
+        life: max,
+        max,
+        size: big ? 5 + Math.random() * 4 : 4 + Math.random() * 2,
+        color: Math.random() < 0.7 ? "#22C55E" : "#86EFAC",
+        spark: false,
+        plus: true,
+      });
+    }
+    this.rings.push({ x, y, life: 0.5, max: 0.5, size: big ? r * 1.6 : r * 0.9, color: "#22C55E" });
   }
 
   ring(x: number, y: number, color: string, size = 46): void {
@@ -269,12 +292,18 @@ export class Fx {
         continue;
       }
       p.vx *= drag;
-      p.vy = p.vy * drag + 500 * dt;
+      p.vy = p.plus ? p.vy * Math.exp(-1.2 * dt) : p.vy * drag + 500 * dt;
       p.x += p.vx * dt;
       p.y += p.vy * dt;
       const k = p.life / p.max;
       ctx.globalAlpha = Math.min(1, k * 1.6);
-      if (p.spark) {
+      if (p.plus) {
+        const s = p.size;
+        const t = Math.max(1.5, s * 0.36);
+        ctx.fillStyle = p.color;
+        ctx.fillRect(p.x - s / 2, p.y - t / 2, s, t);
+        ctx.fillRect(p.x - t / 2, p.y - s / 2, t, s);
+      } else if (p.spark) {
         ctx.strokeStyle = p.color;
         ctx.lineWidth = Math.max(1, p.size * 0.55);
         ctx.lineCap = "round";
