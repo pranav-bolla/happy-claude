@@ -86,7 +86,7 @@ export interface Stats {
   bestKiller: PlayerIdentity | null;
 }
 
-export const MAX_HP = 175;
+export const MAX_HP = 150;
 
 /** Wall impacts below this speed don't hurt. */
 export const HURT_MIN_SPEED = 900;

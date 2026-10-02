@@ -8,7 +8,7 @@ corrections so it stays at 60 fps.
 
 ## The game
 
-Claude has 175 HP, shared by everyone online. Hard wall impacts hurt him,
+Claude has 150 HP, shared by everyone online. Hard wall impacts hurt him,
 but only when he's flying free (pinning him against a wall while dragging
 does nothing).
 The kill clock starts on the first grab after he's revived and stops when
