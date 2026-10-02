@@ -1,0 +1,31 @@
+{
+  "name": "whip-claude",
+  "version": "0.1.0",
+  "private": true,
+  "description": "One object. One shared room. Everyone fighting over it.",
+  "scripts": {
+    "dev": "tsx watch --clear-screen=false --ignore ./app --ignore ./components --ignore ./.next --ignore ./lib/client server/index.ts",
+    "build": "next build",
+    "start": "NODE_ENV=production tsx server/index.ts",
+    "typecheck": "tsc --noEmit",
+    "bots": "tsx scripts/bots.ts"
+  },
+  "dependencies": {
+    "framer-motion": "^12.43.0",
+    "next": "^15.5.27",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "socket.io": "^4.8.4",
+    "socket.io-client": "^4.8.4",
+    "tsx": "^4.23.15"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.3.3",
+    "@types/node": "^22.20.5",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "postcss": "^8.5.28",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^5.9.3"
+  }
+}

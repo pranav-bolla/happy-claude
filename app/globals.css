@@ -1,0 +1,779 @@
+@import "tailwindcss";
+
+@theme {
+  --color-cream: #f7f5f2;
+  --color-claude: #d97757;
+  --color-ink: #1d1d1f;
+  --color-muted: #6b6b6b;
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter",
+    "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
+  background: #f7f5f2;
+  color: #1d1d1f;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* ── background ────────────────────────────────────────────── */
+
+.bg-dots {
+  background-image: radial-gradient(rgba(29, 29, 31, 0.075) 1px, transparent 1.2px);
+  background-size: 24px 24px;
+  mask-image: radial-gradient(ellipse at center, black 30%, transparent 78%);
+  -webkit-mask-image: radial-gradient(ellipse at center, black 30%, transparent 78%);
+}
+
+.bg-glow {
+  background:
+    radial-gradient(circle at 50% 52%, rgba(217, 119, 87, 0.13), transparent 38%),
+    radial-gradient(ellipse at 50% 120%, rgba(217, 119, 87, 0.08), transparent 55%);
+}
+
+/* ── Claude layers (transforms are written by the engine) ──── */
+
+.claude-root {
+  position: absolute;
+  left: 0;
+  top: 0;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+  will-change: transform;
+  pointer-events: none;
+}
+
+.claude-layer {
+  position: absolute;
+  inset: 0;
+  will-change: transform;
+}
+
+.claude-shadow {
+  position: absolute;
+  inset: 4% 6%;
+  border-radius: 9999px;
+  background: radial-gradient(closest-side, rgba(120, 60, 35, 0.32), rgba(120, 60, 35, 0.12) 60%, transparent);
+  filter: blur(10px);
+  will-change: transform, opacity;
+}
+
+.claude-enter {
+  animation: claude-enter 0.9s cubic-bezier(0.2, 1.6, 0.4, 1) both;
+}
+
+@keyframes claude-enter {
+  from {
+    transform: scale(0.4);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+
+.is-blurred {
+  filter: blur(1.4px);
+}
+
+/* ── face ──────────────────────────────────────────────────── */
+
+.face-pop {
+  transform-origin: 100px 100px;
+  animation: face-pop 0.22s cubic-bezier(0.3, 1.8, 0.5, 1);
+}
+
+@keyframes face-pop {
+  from {
+    transform: scale(0.86);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+
+.eye-look {
+  transform: translate(calc(var(--lx, 0) * 6px), calc(var(--ly, 0) * 5px));
+}
+
+.pupil-look {
+  transform: translate(calc(var(--lx, 0) * 4.5px), calc(var(--ly, 0) * 4.5px));
+}
+
+.blink {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: blink 5.2s infinite;
+}
+
+@keyframes blink {
+  0%,
+  93%,
+  100% {
+    transform: scaleY(1);
+  }
+  95% {
+    transform: scaleY(0.08);
+  }
+}
+
+/* ── pixel alien ───────────────────────────────────────────── */
+
+.alien {
+  filter: saturate(calc(1 - var(--dmg, 0) * 0.5)) brightness(calc(1 - var(--dmg, 0) * 0.2));
+}
+
+.leg,
+.arm,
+.tear,
+.sweat,
+.smoke {
+  transform-box: fill-box;
+}
+
+.leg {
+  transform-origin: top;
+}
+.arm-l {
+  transform-origin: right center;
+}
+.arm-r {
+  transform-origin: left center;
+}
+
+/* idle: lazy shuffle */
+.limbs-idle .leg-a {
+  animation: step-a 1.1s steps(1) infinite;
+}
+.limbs-idle .leg-b {
+  animation: step-b 1.1s steps(1) infinite;
+}
+.limbs-idle .arm {
+  animation: arm-bob 2.2s steps(1) infinite;
+}
+
+/* nervous: cursor is near */
+.limbs-nervous .leg-a {
+  animation: step-a 0.28s steps(1) infinite;
+}
+.limbs-nervous .leg-b {
+  animation: step-b 0.28s steps(1) infinite;
+}
+.limbs-nervous .arm-l {
+  transform: rotate(35deg);
+}
+.limbs-nervous .arm-r {
+  transform: rotate(-35deg);
+}
+
+/* flail: being held */
+.limbs-flail .leg-a {
+  animation: kick 0.14s steps(1) infinite;
+}
+.limbs-flail .leg-b {
+  animation: kick 0.14s steps(1) infinite reverse;
+}
+.limbs-flail .arm-l {
+  animation: flail-l 0.16s steps(1) infinite;
+}
+.limbs-flail .arm-r {
+  animation: flail-r 0.16s steps(1) infinite;
+}
+
+/* tucked: flying */
+.limbs-tucked .leg {
+  transform: scaleY(0.35);
+}
+.limbs-tucked .arm-l {
+  transform: rotate(-60deg) scaleX(0.6);
+}
+.limbs-tucked .arm-r {
+  transform: rotate(60deg) scaleX(0.6);
+}
+
+@keyframes step-a {
+  0% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px) scaleY(0.8);
+  }
+}
+@keyframes step-b {
+  0% {
+    transform: translateY(-6px) scaleY(0.8);
+  }
+  50% {
+    transform: translateY(0);
+  }
+}
+@keyframes arm-bob {
+  0% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(5px);
+  }
+}
+@keyframes kick {
+  0% {
+    transform: scaleY(1.15) rotate(18deg);
+  }
+  50% {
+    transform: scaleY(0.6) rotate(-18deg);
+  }
+}
+@keyframes flail-l {
+  0% {
+    transform: rotate(70deg);
+  }
+  50% {
+    transform: rotate(-20deg);
+  }
+}
+@keyframes flail-r {
+  0% {
+    transform: rotate(-70deg);
+  }
+  50% {
+    transform: rotate(20deg);
+  }
+}
+
+.tremble .alien-body {
+  animation: tremble 0.09s steps(1) infinite;
+}
+@keyframes tremble {
+  0% {
+    transform: translate(1.5px, 0);
+  }
+  33% {
+    transform: translate(-1.5px, 1px);
+  }
+  66% {
+    transform: translate(0, -1px);
+  }
+}
+
+.tear {
+  animation: tear 0.55s linear infinite;
+}
+.tear-2 {
+  animation-delay: 0.27s;
+}
+@keyframes tear {
+  from {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateY(38px);
+    opacity: 0;
+  }
+}
+
+.sweat {
+  animation: sweat 1.4s ease-in infinite;
+}
+@keyframes sweat {
+  0% {
+    transform: translateY(0);
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(24px);
+    opacity: 0;
+  }
+}
+
+.smoke {
+  animation: smoke 1.6s steps(6) infinite;
+}
+.smoke-2 {
+  animation-delay: 0.5s;
+}
+.smoke-3 {
+  animation-delay: 1s;
+}
+@keyframes smoke {
+  from {
+    transform: translateY(0) scale(1);
+    opacity: 0.8;
+  }
+  to {
+    transform: translateY(-50px) scale(1.8);
+    opacity: 0;
+  }
+}
+
+.glitch .alien-body {
+  animation: glitch 2.6s steps(1) infinite;
+}
+@keyframes glitch {
+  0%,
+  88%,
+  100% {
+    transform: none;
+    opacity: 1;
+  }
+  90% {
+    transform: translateX(-6px);
+    opacity: 0.7;
+  }
+  93% {
+    transform: translateX(5px) skewX(-6deg);
+  }
+  96% {
+    transform: none;
+    opacity: 0.4;
+  }
+}
+
+/* dead: belly up, limp, soul leaving */
+.alien-flip {
+  transform-origin: 100px 105px;
+  transition: transform 0.45s cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+.is-dead .alien-flip {
+  transform: rotate(180deg);
+}
+.is-dead {
+  filter: grayscale(0.85) brightness(0.8);
+}
+.limbs-limp .leg-a {
+  transform: rotate(25deg) scaleY(0.8);
+}
+.limbs-limp .leg-b {
+  transform: rotate(-15deg) scaleY(0.7);
+}
+.limbs-limp .arm-l {
+  transform: rotate(-40deg);
+}
+.limbs-limp .arm-r {
+  transform: rotate(50deg);
+}
+.ghost {
+  transform-box: fill-box;
+  animation: ghost 2.4s ease-in infinite;
+}
+@keyframes ghost {
+  0% {
+    transform: translateY(40px);
+    opacity: 0;
+  }
+  15% {
+    opacity: 0.85;
+  }
+  100% {
+    transform: translateY(-90px);
+    opacity: 0;
+  }
+}
+
+/* ── speech bubble + hurt vignette ────────────────────────── */
+
+.speech {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+  will-change: transform;
+}
+
+.speech-inner {
+  position: relative;
+  max-width: 220px;
+  padding: 7px 11px;
+  background: #1d1d1f;
+  color: #f7f5f2;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+  box-shadow: 4px 4px 0 rgba(29, 29, 31, 0.18);
+  opacity: 0;
+  transform: translateY(6px) scale(0.85);
+  transform-origin: bottom left;
+  transition:
+    opacity 0.3s ease,
+    transform 0.3s ease;
+}
+
+.speech-inner::after {
+  content: "";
+  position: absolute;
+  left: 10px;
+  bottom: -8px;
+  border: 4px solid transparent;
+  border-top-color: #1d1d1f;
+  border-left-color: #1d1d1f;
+}
+
+.speech.is-visible .speech-inner {
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity 0.08s ease,
+    transform 0.22s cubic-bezier(0.3, 1.8, 0.5, 1);
+}
+
+.hurt-vignette {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  box-shadow: inset 0 0 180px 30px rgba(150, 22, 22, 0.55);
+  will-change: opacity;
+}
+
+/* ── remote presence ───────────────────────────────────────── */
+
+.remote-cursor {
+  position: absolute;
+  left: 0;
+  top: 0;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+  will-change: transform, opacity;
+}
+
+.remote-cursor.is-visible {
+  opacity: 1;
+}
+
+.remote-cursor svg {
+  position: absolute;
+  left: -2px;
+  top: -2px;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.18));
+  transition: opacity 0.15s ease;
+}
+
+.remote-cursor-dot {
+  position: absolute;
+  left: -9px;
+  top: -9px;
+  width: 18px;
+  height: 18px;
+  border-radius: 9999px;
+  background: var(--c);
+  border: 2.5px solid white;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.22), 0 0 0 4px color-mix(in srgb, var(--c) 25%, transparent);
+  opacity: 0;
+  transform: scale(0.4);
+  transition:
+    opacity 0.15s ease,
+    transform 0.25s cubic-bezier(0.3, 1.8, 0.5, 1);
+}
+
+.remote-cursor-name {
+  position: absolute;
+  left: 14px;
+  top: 14px;
+  white-space: nowrap;
+  padding: 3px 8px;
+  border-radius: 9999px;
+  background: var(--c);
+  color: white;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.14);
+}
+
+.remote-cursor.is-grabbing svg {
+  opacity: 0;
+}
+
+.remote-cursor.is-grabbing .remote-cursor-dot {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.grab-tag {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+  white-space: nowrap;
+  will-change: transform;
+}
+
+.grab-tag-inner {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 11px 5px 9px;
+  border-radius: 9999px;
+  background: rgba(29, 29, 31, 0.88);
+  color: white;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.005em;
+  box-shadow: 0 6px 20px rgba(29, 29, 31, 0.18);
+  opacity: 0;
+  transform: translateY(6px) scale(0.9);
+  transition:
+    opacity 0.35s ease,
+    transform 0.35s ease;
+}
+
+.grab-tag-inner::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 9999px;
+  background: var(--c, #d97757);
+}
+
+.grab-tag.is-visible .grab-tag-inner {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  transition:
+    opacity 0.12s ease,
+    transform 0.25s cubic-bezier(0.3, 1.8, 0.5, 1);
+}
+
+/* ── inventory ─────────────────────────────────────────────────────── */
+
+.inv-slot {
+  position: relative;
+  width: 3.25rem;
+  height: 3.25rem;
+  border-radius: 0.8rem;
+  border: 2px solid transparent;
+  background: rgba(29, 29, 31, 0.04);
+  overflow: hidden;
+  cursor: pointer;
+  transition:
+    transform 0.15s cubic-bezier(0.3, 1.8, 0.5, 1),
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.inv-slot:hover {
+  transform: translateY(-2px);
+  background: rgba(29, 29, 31, 0.08);
+}
+
+.inv-slot.is-active {
+  border-color: #d97757;
+  background: rgba(217, 119, 87, 0.12);
+  transform: translateY(-3px);
+}
+
+.inv-icon {
+  position: absolute;
+  inset: 0.55rem 0.55rem 0.8rem;
+  display: block;
+  image-rendering: pixelated;
+}
+
+.inv-key {
+  position: absolute;
+  left: 0.3rem;
+  top: 0.15rem;
+  font-size: 9px;
+  font-weight: 700;
+  color: #6b6b6b;
+  font-variant-numeric: tabular-nums;
+}
+
+.inv-name {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0.12rem;
+  font-size: 8.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #6b6b6b;
+}
+
+.inv-slot.is-active .inv-name {
+  color: #d97757;
+}
+
+.inv-cooldown {
+  position: absolute;
+  inset: 0;
+  background: rgba(29, 29, 31, 0.55);
+  transform-origin: bottom;
+  animation: inv-cooldown linear forwards;
+  pointer-events: none;
+}
+
+@keyframes inv-cooldown {
+  from {
+    transform: scaleY(1);
+  }
+  to {
+    transform: scaleY(0);
+  }
+}
+
+/* ── item fx ───────────────────────────────────────────────────────── */
+
+.pop-word {
+  position: absolute;
+  transform: translate(-50%, -50%) rotate(var(--tilt, 0deg));
+  font-size: clamp(22px, 4vw, 34px);
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  color: #fff;
+  -webkit-text-stroke: 2px var(--c, #1d1d1f);
+  paint-order: stroke fill;
+  text-shadow: 3px 3px 0 var(--c, #1d1d1f);
+  white-space: nowrap;
+  animation: pop-word 0.9s cubic-bezier(0.2, 1.6, 0.4, 1) forwards;
+}
+
+.pop-word.is-small {
+  font-size: 13px;
+  font-weight: 700;
+  color: #6b6b6b;
+  -webkit-text-stroke: 0;
+  text-shadow: none;
+}
+
+@keyframes pop-word {
+  0% {
+    opacity: 0;
+    scale: 0.3;
+  }
+  18% {
+    opacity: 1;
+    scale: 1.15;
+  }
+  30% {
+    scale: 1;
+  }
+  75% {
+    opacity: 1;
+    translate: 0 -10px;
+  }
+  100% {
+    opacity: 0;
+    translate: 0 -22px;
+  }
+}
+
+.dmg-number {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  font-size: 18px;
+  font-weight: 800;
+  color: #c0392b;
+  text-shadow:
+    0 1px 0 #fff,
+    0 0 6px rgba(255, 255, 255, 0.9);
+  font-variant-numeric: tabular-nums;
+  animation: dmg-number 1s ease-out forwards;
+}
+
+@keyframes dmg-number {
+  0% {
+    opacity: 0;
+    translate: 0 0;
+    scale: 0.6;
+  }
+  15% {
+    opacity: 1;
+    scale: 1.2;
+  }
+  100% {
+    opacity: 0;
+    translate: var(--dx, 0) -70px;
+    scale: 1;
+  }
+}
+
+.item-sprite {
+  position: absolute;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 4px 4px rgba(29, 29, 31, 0.25));
+}
+
+.item-hammer {
+  transform-origin: 50% 95%;
+  animation: hammer-swing 0.6s cubic-bezier(0.5, 0, 0.75, 0) forwards;
+}
+
+@keyframes hammer-swing {
+  0% {
+    opacity: 0;
+    transform: rotate(-120deg) translateY(-10%);
+  }
+  15% {
+    opacity: 1;
+  }
+  25% {
+    transform: rotate(-125deg) translateY(-10%);
+  }
+  40% {
+    transform: rotate(-10deg);
+  }
+  48% {
+    transform: rotate(4deg);
+  }
+  80% {
+    opacity: 1;
+    transform: rotate(0deg);
+  }
+  100% {
+    opacity: 0;
+    transform: rotate(0deg) translateY(-15%);
+  }
+}
+
+.item-bomb {
+  animation: bomb-blink 0.18s steps(1) infinite;
+}
+
+@keyframes bomb-blink {
+  0% {
+    filter: drop-shadow(0 0 0 transparent) brightness(1);
+    scale: 1;
+  }
+  50% {
+    filter: drop-shadow(0 0 8px #ef4444) brightness(1.6);
+    scale: 1.12;
+  }
+}
+
+.claude-root.is-zapped .alien {
+  animation: zapped 0.07s steps(1) infinite;
+}
+
+@keyframes zapped {
+  0% {
+    filter: invert(1) brightness(1.4);
+    translate: -2px 1px;
+  }
+  50% {
+    filter: brightness(1.8) drop-shadow(0 0 10px #facc15);
+    translate: 2px -1px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .blink,
+  .tremble .alien-body,
+  .glitch .alien-body,
+  .item-bomb,
+  .claude-root.is-zapped .alien {
+    animation: none;
+  }
+}
