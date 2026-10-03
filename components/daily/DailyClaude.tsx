@@ -7,7 +7,15 @@ import ClaudeMascot from "../ClaudeMascot";
 import { SoundToggle } from "../Hud";
 import { Inventory } from "../Inventory";
 import { Engine, type Expression } from "@/lib/client/engine";
-import { getResult, getStats, hasSeenRules, markRulesSeen, saveResult, type DailyStats } from "@/lib/client/dailyStore";
+import {
+  getResult,
+  getStats,
+  hasSeenRules,
+  markRulesSeen,
+  playerId,
+  saveResult,
+  type DailyStats,
+} from "@/lib/client/dailyStore";
 import { ITEMS, ITEM_ORDER, type ItemId } from "@/lib/items";
 import { ITEM_ART } from "@/lib/client/itemArt";
 import { dailySpec, dayNumber, moveColor, type DailyResult, type DailySpec, type SharedRun } from "@/lib/daily";
@@ -94,7 +102,7 @@ function DailyGame({ day, challenge }: { day: number; challenge: SharedRun | nul
       void fetch("/api/daily", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ day, killed: didKill, moves: r.moves }),
+        body: JSON.stringify({ day, id: playerId(), killed: didKill, moves: r.moves }),
       })
         .then((res) => (res.ok ? res.json() : null))
         .then((s) => s && setGlobal(s))

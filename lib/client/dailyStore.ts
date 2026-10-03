@@ -6,6 +6,27 @@ import type { DailyResult } from "../daily";
 
 const KEY = "whip-claude:daily";
 const SEEN_RULES_KEY = "whip-claude:daily-rules";
+const ID_KEY = "whip-claude:daily-id";
+
+/** Random id so the global stats count this browser once per puzzle. */
+export function playerId(): string {
+  try {
+    let id = localStorage.getItem(ID_KEY);
+    if (!id) {
+      id = randomId();
+      localStorage.setItem(ID_KEY, id);
+    }
+    return id;
+  } catch {
+    return randomId();
+  }
+}
+
+/** crypto.randomUUID needs HTTPS, which a phone on the LAN dev URL doesn't have. */
+function randomId(): string {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
+  return Array.from({ length: 4 }, () => Math.random().toString(36).slice(2, 10)).join("-");
+}
 
 type History = Record<number, DailyResult>;
 

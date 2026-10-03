@@ -77,8 +77,12 @@ and their results card says whether they beat you.
 - The game runs entirely in the browser: `Engine` in solo mode with the
   same physics and items as multiplayer.
 - Results and streaks are kept in localStorage (`lib/client/dailyStore.ts`).
-- Global "you beat X%" stats come from `/api/daily`, held in memory
-  with one result per IP per day. They reset when the server restarts.
+- Global "you beat X%" stats come from `/api/daily` (`lib/server/dailyStats.ts`).
+  Each browser counts once per puzzle, using a random id kept in
+  localStorage, and one network can add at most 40 results per puzzle. They're
+  stored in Postgres when `DATABASE_URL` is set, and in memory otherwise (reset
+  on restart). Only today's and yesterday's puzzles are kept. Results aren't
+  verified, so someone could still post fake ones.
 - Run codes are encoded and decoded in `lib/daily.ts` (`encodeRun` /
   `decodeRun`). Someone could edit a code to fake a run, but that only
   changes the preview picture, not anyone's stats.
@@ -166,9 +170,40 @@ npm start                    # PORT=3000 by default
 Deploy anywhere that runs a long-lived Node process with WebSockets
 (Railway, Render, Fly.io, a VPS). A `Dockerfile` is included. Serverless
 platforms such as Vercel functions can't hold the WebSocket room. Run one
-instance (on Railway, keep replicas at 1). The room, chat history, kill
-record and daily stats all live in memory and reset on redeploy. Players'
-own daily streaks are stored in their browsers and aren't affected.
+instance (on Railway, keep replicas at 1). The room, chat history and kill
+record live in memory and reset on redeploy. Players' own daily streaks are
+stored in their browsers and aren't affected.
+
+### Daily stats database (Postgres)
+
+Daily stats survive redeploys if the app has a Postgres database. Without
+one, they fall back to memory.
+
+1. On Railway, choose **+ New → Database → PostgreSQL**.
+2. Open the **app** service (not the database), go to **Variables**, and add
+   `DATABASE_URL` = `${{Postgres.DATABASE_URL}}`. The Postgres service has its
+   own `DATABASE_URL`, but your app can't see it until you reference it like
+   this. If the app service already has `DATABASE_URL`, make sure it points at
+   this database.
+3. Redeploy. Then play a daily and check the Postgres **Data** tab for a
+   `daily_results` table. Connection problems show up in the deploy logs as
+   lines starting with `[daily]`. If the database is down, players just don't
+   see the "you beat X%" line; the game still works.
+
+The app creates the table itself on first use: one row per counted result
+(day, browser id, IP, killed, moves, time). Only today's and yesterday's
+puzzles are kept. Older rows are deleted automatically once a day, so the table
+stays small and IPs aren't stored long-term.
+
+How many people KO'd him in each number of moves on a puzzle (swap in the
+puzzle number):
+
+```sql
+SELECT moves, count(*) FROM daily_results WHERE day = 3 AND killed GROUP BY moves ORDER BY moves;
+```
+
+To use a database locally, set `DATABASE_URL` before `npm run dev`, for
+example `DATABASE_URL=postgres://localhost/happyclaude npm run dev`.
 
 ## Architecture
 
@@ -176,7 +211,8 @@ own daily streaks are stored in their browsers and aren't affected.
 server/index.ts            Next.js + Socket.IO on one HTTP server
 server/world.ts            the authoritative room: physics loop, ownership,
                            items, health, kill leaderboard, chat
-server/stats.ts            StatsStore interface (in-memory now; swap for Redis/DB)
+server/stats.ts            kill record / counters (in memory; StatsStore interface
+                           so it can move to a database later)
 server/identity.ts         anonymous names/colors, coarse city from edge headers
 lib/physics.ts             shared deterministic disc physics (server AND client),
                            with optional arena bounds, bumpers and tuning
@@ -195,7 +231,8 @@ app/page.tsx               the multiplayer room
 app/opengraph-image.tsx    link-preview image for the main site
 app/daily/page.tsx         Daily Claude (reads ?r= for challenges and previews)
 app/daily/og/route.tsx     link-preview image for /daily, per shared run
-app/api/daily/route.ts     global daily stats (in memory)
+app/api/daily/route.ts     global daily stats API (submit a result, read totals)
+lib/server/dailyStats.ts   daily stats storage: Postgres, or memory without a DB
 components/                React UI: mascot, HUD, daily card, health bar,
                            death screen, inventory, chat
 components/daily/          Daily Claude game + results/share card
