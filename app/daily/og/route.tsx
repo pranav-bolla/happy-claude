@@ -1,6 +1,6 @@
 import { ImageResponse } from "next/og";
 import { ITEM_ART } from "@/lib/client/itemArt";
-import { dailySpec, decodeRun, moveColor } from "@/lib/daily";
+import { dailySpec, decodeRun, isOneShot, moveColor } from "@/lib/daily";
 import type { ItemId } from "@/lib/items";
 import { CLAUDE, CREAM, INK, OG_SIZE, mascotSrc, ogFonts } from "@/lib/og";
 
@@ -25,12 +25,22 @@ export async function GET(req: Request) {
   const spec = run ? dailySpec(run.day) : null;
   const { actions, grid, killed } = run ?? SAMPLE;
 
+  const oneShot = !!run && isOneShot(run);
   const label = run && spec ? `DAILY CLAUDE #${run.day} · ${spec.modifier.name.toUpperCase()}` : "NEW PUZZLE EVERY DAY";
-  const title = run && spec ? (killed ? `KO in ${grid.length}/${spec.moves}` : "He survived.") : "Daily Claude";
-  const subtitle = run
-    ? "Same Claude for everyone today."
-    : "KO him in as few moves as you can. Same puzzle for everyone.";
-  const footer = run ? "can you beat it? →" : "6/10 · can you beat it?";
+  const title = oneShot
+    ? "ONE-SHOT."
+    : run && spec
+      ? killed
+        ? `KO in ${grid.length}/${spec.moves}`
+        : "He survived."
+      : "Daily Claude";
+  const subtitle = oneShot
+    ? "KO'd Claude in a single move."
+    : run
+      ? "Same Claude for everyone today."
+      : "KO him in as few moves as you can. Same puzzle for everyone.";
+  const footer = oneShot ? "think you can match it? →" : run ? "can you beat it? →" : "6/10 · can you beat it?";
+  const accent = oneShot ? "#FACC15" : CLAUDE;
 
   const tile = Math.min(64, Math.floor((620 - (grid.length - 1) * 10) / grid.length));
 
@@ -50,7 +60,7 @@ export async function GET(req: Request) {
         }}
       >
         <div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
-          <div style={{ fontFamily: "Mono", fontSize: 24, letterSpacing: 5, color: CLAUDE }}>{label}</div>
+          <div style={{ fontFamily: "Mono", fontSize: 24, letterSpacing: 5, color: accent }}>{label}</div>
           <div style={{ marginTop: 14, fontSize: 96, fontWeight: 900, lineHeight: 1, letterSpacing: -2, color: CREAM }}>
             {title}
           </div>
@@ -104,7 +114,7 @@ export async function GET(req: Request) {
             height: 340,
             flexShrink: 0,
             background: CREAM,
-            boxShadow: `16px 16px 0 ${CLAUDE}`,
+            boxShadow: `16px 16px 0 ${accent}`,
             alignItems: "center",
             justifyContent: "center",
           }}

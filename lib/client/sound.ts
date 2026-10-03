@@ -214,6 +214,36 @@ export class Sfx {
     });
   }
 
+  /** 8-bit victory fanfare for a one-shot KO. */
+  fanfare(): void {
+    const ctx = this.ready();
+    if (!ctx) return;
+    const t = ctx.currentTime + 0.25;
+    const notes: [freq: number, at: number, len: number][] = [
+      [523, 0, 0.1],
+      [523, 0.12, 0.1],
+      [523, 0.24, 0.1],
+      [659, 0.36, 0.3],
+      [587, 0.7, 0.12],
+      [659, 0.84, 0.12],
+      [784, 0.98, 0.5],
+    ];
+    for (const [f, at, len] of notes) {
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.type = "square";
+      o.frequency.value = f;
+      const s = t + at;
+      g.gain.setValueAtTime(0.0001, s);
+      g.gain.exponentialRampToValueAtTime(0.08, s + 0.01);
+      g.gain.setValueAtTime(0.08, s + len * 0.7);
+      g.gain.exponentialRampToValueAtTime(0.0001, s + len);
+      o.connect(g).connect(this.master!);
+      o.start(s);
+      o.stop(s + len + 0.02);
+    }
+  }
+
   /** Rising zap for ridiculous throws. */
   launch(): void {
     const ctx = this.ready();

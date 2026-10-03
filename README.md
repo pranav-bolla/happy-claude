@@ -70,6 +70,12 @@ iMessage and other chats, the link preview shows your moves with "can you beat
 it?". A friend who opens the link sees a **🎯 BEAT 6/12** box before they start,
 and their results card says whether they beat you.
 
+**One-shots.** A KO in a single move is only possible on some days
+(Glass Jaw and Rubber Claude, with a perfect max-speed throw). It gets a
+full-screen "ONE-SHOT!" moment with a fanfare (if sound is on), a gold badge
+on the results card, "🏆 ONE-SHOT" in the share text, and its own link
+preview.
+
 - The puzzle is built in `lib/daily.ts`. A seeded RNG turns the day number
   into the spec, so every player gets the same puzzle without a server.
   Changing the order of random calls in `dailySpec`, or the `MODIFIERS`

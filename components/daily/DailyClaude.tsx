@@ -18,7 +18,15 @@ import {
 } from "@/lib/client/dailyStore";
 import { ITEMS, ITEM_ORDER, type ItemId } from "@/lib/items";
 import { ITEM_ART } from "@/lib/client/itemArt";
-import { dailySpec, dayNumber, moveColor, type DailyResult, type DailySpec, type SharedRun } from "@/lib/daily";
+import {
+  dailySpec,
+  dayNumber,
+  isOneShot,
+  moveColor,
+  type DailyResult,
+  type DailySpec,
+  type SharedRun,
+} from "@/lib/daily";
 import { DailyResults, RunGrid, type GlobalDaily } from "./DailyResults";
 
 type Phase = "intro" | "playing" | "done";
@@ -65,6 +73,7 @@ function DailyGame({ day, challenge }: { day: number; challenge: SharedRun | nul
   const [global, setGlobal] = useState<GlobalDaily | null>(null);
   const [sound, setSound] = useState(false);
   const [killed, setKilled] = useState(false);
+  const [oneShot, setOneShot] = useState(false);
 
   const game = useRef({
     moves: 0,
@@ -107,7 +116,12 @@ function DailyGame({ day, challenge }: { day: number; challenge: SharedRun | nul
         .then((res) => (res.ok ? res.json() : null))
         .then((s) => s && setGlobal(s))
         .catch(noop);
-      setTimeout(() => setPhase("done"), didKill ? 1700 : 900);
+      const legendary = isOneShot(r);
+      if (legendary) {
+        setOneShot(true);
+        engine.current?.sound.fanfare();
+      }
+      setTimeout(() => setPhase("done"), legendary ? 3600 : didKill ? 1700 : 900);
     },
     [day, spec],
   );
@@ -363,7 +377,11 @@ function DailyGame({ day, challenge }: { day: number; challenge: SharedRun | nul
               {challenge && (
                 <div className="mt-4 border border-claude/60 bg-claude/10 p-2.5">
                   <p className="font-mono text-[11px] font-bold tracking-[0.12em] text-claude">
-                    {challenge.killed ? `🎯 BEAT ${challenge.grid.length}/${spec.moves}` : "🎯 THEY COULDN'T KO HIM"}
+                    {isOneShot(challenge)
+                      ? "🏆 THEY ONE-SHOT HIM. MATCH IT."
+                      : challenge.killed
+                        ? `🎯 BEAT ${challenge.grid.length}/${spec.moves}`
+                        : "🎯 THEY COULDN'T KO HIM"}
                   </p>
                   <div className="mt-2">
                     <RunGrid actions={challenge.actions} grid={challenge.grid} killed={challenge.killed} size={18} />
@@ -424,6 +442,60 @@ function DailyGame({ day, challenge }: { day: number; challenge: SharedRun | nul
                 GOT IT
               </button>
             </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── one-shot celebration ── */}
+      <AnimatePresence>
+        {oneShot && phase === "playing" && (
+          <motion.div
+            className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center overflow-hidden"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0, transition: { duration: 0.3 } }}
+          >
+            <motion.div
+              className="absolute inset-0 bg-[radial-gradient(circle,rgba(250,204,21,0.55),rgba(217,119,87,0.25)_45%,transparent_70%)]"
+              initial={{ scale: 0.2, opacity: 1 }}
+              animate={{ scale: [0.2, 1.6, 1.3], opacity: [1, 0.9, 0.6] }}
+              transition={{ duration: 1.2, ease: "easeOut" }}
+            />
+            {Array.from({ length: 14 }, (_, i) => (
+              <motion.div
+                key={i}
+                className="absolute left-1/2 top-1/2 h-[45vmax] w-3 origin-top bg-gradient-to-b from-yellow-300/70 to-transparent"
+                style={{ rotate: (360 / 14) * i }}
+                initial={{ scaleY: 0, opacity: 0 }}
+                animate={{ scaleY: 1, opacity: [0, 0.8, 0.35] }}
+                transition={{ delay: 0.1, duration: 0.9, ease: "easeOut" }}
+              />
+            ))}
+            <motion.p
+              className="relative font-mono text-[clamp(13px,2vw,18px)] font-bold tracking-[0.4em] text-ink"
+              initial={{ y: 20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: 0.35 }}
+            >
+              🏆 FIRST MOVE KO 🏆
+            </motion.p>
+            <motion.p
+              className="relative text-center text-[clamp(64px,16vw,190px)] font-black italic leading-[0.85] tracking-tight text-claude"
+              style={{ textShadow: "0 6px 0 #1D1D1F, 0 22px 50px rgba(217,119,87,0.5)" }}
+              initial={{ scale: 3, rotate: -20, opacity: 0 }}
+              animate={{ scale: [3, 0.9, 1.05, 1], rotate: [-20, -6, -8, -7], opacity: 1 }}
+              transition={{ duration: 0.7, times: [0, 0.6, 0.8, 1], ease: "easeOut" }}
+            >
+              ONE-SHOT!
+            </motion.p>
+            <motion.p
+              className="relative mt-4 font-mono text-[12px] tracking-[0.2em] text-ink/70"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 1.1 }}
+            >
+              screenshot this. nobody will believe you.
+            </motion.p>
           </motion.div>
         )}
       </AnimatePresence>

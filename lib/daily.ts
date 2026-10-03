@@ -238,7 +238,9 @@ export interface DailyResult {
  * Omit `url` when the share sheet attaches it separately (that's what gets a link preview).
  */
 export function shareText(r: DailyResult, streak: number, url?: string): string {
-  const head = `Daily Claude #${r.day} ${r.killed ? "💀" : "😇"} ${r.killed ? r.moves : "X"}/${r.maxMoves}`;
+  const head =
+    `Daily Claude #${r.day} ${r.killed ? "💀" : "😇"} ${r.killed ? r.moves : "X"}/${r.maxMoves}` +
+    (isOneShot(r) ? " 🏆 ONE-SHOT" : "");
   const squares = r.grid.map((d, i) => moveSquare(d, r.killed && i === r.grid.length - 1)).join("");
   const lines = [head];
   if (r.actions?.length === r.grid.length) lines.push(r.actions.map((a) => MOVE_EMOJI[a] ?? "✋").join(""));
@@ -249,6 +251,11 @@ export function shareText(r: DailyResult, streak: number, url?: string): string 
   lines.push(tail.join(" · "));
   if (url) lines.push(url);
   return lines.join("\n");
+}
+
+/** KO'd in a single move. Only possible on some days (bouncy or double-damage walls). */
+export function isOneShot(r: { killed: boolean; grid: number[] }): boolean {
+  return r.killed && r.grid.length === 1;
 }
 
 /** Link to /daily that carries the result, so the link preview shows this run. */

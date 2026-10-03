@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import DailyClaude from "@/components/daily/DailyClaude";
-import { dailySpec, decodeRun } from "@/lib/daily";
+import { dailySpec, decodeRun, isOneShot } from "@/lib/daily";
 
 type Props = { searchParams: Promise<{ r?: string | string[] }> };
 
@@ -23,7 +23,12 @@ export async function generateMetadata({ searchParams }: Props): Promise<Metadat
   if (shared) {
     const { run, code } = shared;
     const spec = dailySpec(run.day);
-    title = `Daily Claude #${run.day}: ${run.killed ? `KO in ${run.grid.length}/${spec.moves}` : "he survived"}`;
+    const outcome = isOneShot(run)
+      ? "🏆 ONE-SHOT"
+      : run.killed
+        ? `KO in ${run.grid.length}/${spec.moves}`
+        : "he survived";
+    title = `Daily Claude #${run.day}: ${outcome}`;
     description = `${spec.modifier.name}. Same puzzle for everyone today. Can you beat it?`;
     image = `/daily/og?r=${code}`;
     url = `/daily?r=${code}`;

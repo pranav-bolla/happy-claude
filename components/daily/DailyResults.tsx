@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { DailyStats } from "@/lib/client/dailyStore";
 import { ITEM_ART } from "@/lib/client/itemArt";
-import { moveColor, msUntilNextDay, shareText, shareUrl, type DailyResult, type SharedRun } from "@/lib/daily";
+import { isOneShot, moveColor, msUntilNextDay, shareText, shareUrl, type DailyResult, type SharedRun } from "@/lib/daily";
 import { ITEMS, type ItemId } from "@/lib/items";
 
 export interface GlobalDaily {
@@ -35,6 +35,8 @@ function beatPct(r: DailyResult, g: GlobalDaily): number | null {
 
 function versus(r: DailyResult, c: SharedRun): string {
   const theirs = c.grid.length;
+  if (isOneShot(r) && isOneShot(c)) return "🏆 you both one-shot him. legends.";
+  if (isOneShot(c)) return "🏆 they one-shot him. respect.";
   if (!r.killed && !c.killed) return "🎯 neither of you could KO him. tie.";
   if (!r.killed) return `🎯 they KO'd him in ${theirs}. you didn't.`;
   if (!c.killed || r.moves < theirs) return `🎯 you beat their ${c.killed ? theirs : "X"}. send it back.`;
@@ -114,6 +116,7 @@ export function DailyResults({
   const [copied, setCopied] = useState(false);
   const winPct = stats.played ? Math.round((stats.wins / stats.played) * 100) : 0;
   const pct = global ? beatPct(r, global) : null;
+  const oneShot = isOneShot(r);
 
   const buckets = Math.max(r.maxMoves, ...Object.keys(stats.dist).map(Number), 1);
   const rows = Array.from({ length: buckets }, (_, i) => i + 1).filter(
@@ -147,11 +150,24 @@ export function DailyResults({
         initial={{ y: 30, scale: 0.92, rotate: -2 }}
         animate={{ y: 0, scale: 1, rotate: 0 }}
         transition={{ type: "spring", stiffness: 380, damping: 24, delay: 0.1 }}
-        className="my-auto w-full max-w-[380px] bg-ink p-5 text-cream shadow-[8px_8px_0_rgba(217,119,87,0.9)]"
+        className={`my-auto w-full max-w-[380px] bg-ink p-5 text-cream ${
+          oneShot ? "shadow-[8px_8px_0_#FACC15]" : "shadow-[8px_8px_0_rgba(217,119,87,0.9)]"
+        }`}
       >
         <p className="font-mono text-[11px] font-bold tracking-[0.24em] text-claude">
           DAILY CLAUDE #{day} · {r.modifier.toUpperCase()}
         </p>
+
+        {oneShot && (
+          <motion.p
+            initial={{ scale: 0, rotate: -12 }}
+            animate={{ scale: 1, rotate: -3 }}
+            transition={{ delay: 0.3, type: "spring", stiffness: 400, damping: 14 }}
+            className="mt-3 inline-block bg-yellow-400 px-2.5 py-1 font-mono text-[14px] font-black tracking-[0.18em] text-ink"
+          >
+            🏆 ONE-SHOT
+          </motion.p>
+        )}
 
         {r.killed ? (
           <>
