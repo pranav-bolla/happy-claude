@@ -50,6 +50,8 @@ import {
   DRAG_SEND_MS,
   MAX_HP,
   wallDamage,
+  type ChatMessage,
+  type ChatResult,
   type FeedItem,
   type Round,
   type UsedEvent,
@@ -102,6 +104,9 @@ export interface EngineEvents {
   onItem(item: ItemId): void;
   /** an item went on cooldown locally */
   onCooldown(item: ItemId, ms: number): void;
+  onChat(m: ChatMessage): void;
+  /** full recent history (on join / reconnect) */
+  onChatHistory(list: ChatMessage[]): void;
 }
 
 /** Throws feel better slightly exaggerated. */
@@ -256,6 +261,7 @@ export class Engine {
       onLeft: (id) => this.removeCursor(id),
       onRound: (r) => this.onRound(r),
       onUsed: (e) => this.onUsed(e),
+      onChat: ev.onChat,
     });
   }
 
@@ -278,6 +284,9 @@ export class Engine {
     on(document.documentElement, "mouseleave", () => (this.pointer.active = false));
     on(window, "blur", () => this.release());
     on(window, "keydown", (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
       const id = ITEM_ORDER.find((i) => ITEMS[i].key === e.key);
       if (id) this.setItem(id);
     });
@@ -581,11 +590,20 @@ export class Engine {
     this.alive = w.round.alive;
     this.roundId = w.round.id;
     this.ev.onRound(w.round, w.you.id);
+    this.ev.onChatHistory(w.chat ?? []);
     this.applySnapshot(w.world);
   }
 
   revive(): void {
     this.net.revive();
+  }
+
+  chat(text: string): Promise<ChatResult> {
+    return this.net.chat(text);
+  }
+
+  get myId(): string | null {
+    return this.me?.id ?? null;
   }
 
   serverNow(): number {

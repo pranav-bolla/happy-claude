@@ -167,7 +167,22 @@ export interface Welcome {
   players: number;
   stats: Stats;
   round: Round;
+  /** recent chat, oldest first */
+  chat: ChatMessage[];
 }
+
+export const CHAT_MAX_LEN = 140;
+export const CHAT_HISTORY = 40;
+
+export interface ChatMessage {
+  id: number;
+  who: PlayerIdentity;
+  text: string;
+  /** server time */
+  t: number;
+}
+
+export type ChatResult = { ok: true } | { ok: false; reason: string };
 
 /** Death screen must be up this long before anyone can revive. */
 export const REVIVE_LOCK_MS = 1500;

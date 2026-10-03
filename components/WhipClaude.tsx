@@ -3,12 +3,21 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import ClaudeMascot from "./ClaudeMascot";
 import { Feed, Header, Hint, HypeText, SoundToggle, StatsBar, StatusPill } from "./Hud";
+import { Chat } from "./Chat";
 import { Inventory, type Cooldowns } from "./Inventory";
 import { DeathScreen, HealthBar } from "./Round";
 import type { ItemId } from "@/lib/items";
 import { Engine, type Expression } from "@/lib/client/engine";
 import type { ConnStatus } from "@/lib/client/net";
-import { MAX_HP, type FeedItem, type Hype, type Round, type Stats } from "@/lib/protocol";
+import {
+  CHAT_HISTORY,
+  MAX_HP,
+  type ChatMessage,
+  type FeedItem,
+  type Hype,
+  type Round,
+  type Stats,
+} from "@/lib/protocol";
 
 const FEED_TTL_MS = 4200;
 const HYPE_TTL_MS = 1500;
@@ -59,6 +68,7 @@ export default function WhipClaude() {
   const [sound, setSound] = useState(false);
   const [item, setItem] = useState<ItemId>("hand");
   const [cooldowns, setCooldowns] = useState<Cooldowns>({});
+  const [chat, setChat] = useState<ChatMessage[]>([]);
 
   useEffect(() => {
     setMyBest(loadBest());
@@ -98,6 +108,8 @@ export default function WhipClaude() {
         onFirstGrab: () => setHint(false),
         onItem: setItem,
         onCooldown: (id, ms) => setCooldowns((c) => ({ ...c, [id]: { at: performance.now(), ms } })),
+        onChat: (m) => setChat((c) => (c.some((x) => x.id === m.id) ? c : [...c, m].slice(-CHAT_HISTORY))),
+        onChatHistory: setChat,
         onDamage: setDamage,
         onHp: setHp,
         onRound: (r, myId) => {
@@ -141,6 +153,10 @@ export default function WhipClaude() {
   const now = useCallback(() => engine.current?.serverNow() ?? Date.now(), []);
   const revive = useCallback(() => engine.current?.revive(), []);
   const selectItem = useCallback((id: ItemId) => engine.current?.setItem(id), []);
+  const sendChat = useCallback(
+    (text: string) => engine.current?.chat(text) ?? Promise.resolve({ ok: false as const, reason: "offline" }),
+    [],
+  );
 
   return (
     <main className="fixed inset-0 touch-none overflow-hidden bg-cream select-none">
@@ -198,6 +214,7 @@ export default function WhipClaude() {
         now={now}
         onRevive={revive}
       />
+      <Chat messages={chat} myId={myId} send={sendChat} />
     </main>
   );
 }

@@ -1,6 +1,8 @@
 import { io, type Socket } from "socket.io-client";
 import {
   SOCKET_PATH,
+  type ChatMessage,
+  type ChatResult,
   type CursorInput,
   type DragInput,
   type FeedItem,
@@ -36,6 +38,7 @@ export interface NetHandlers {
   onLeft(id: string): void;
   onRound(r: Round): void;
   onUsed(e: UsedEvent): void;
+  onChat(m: ChatMessage): void;
 }
 
 const IDENTITY_KEY = "whip-claude:identity";
@@ -91,6 +94,7 @@ export class Net {
     s.on("left", h.onLeft);
     s.on("round", h.onRound);
     s.on("used", h.onUsed);
+    s.on("chat", h.onChat);
 
     this.clockTimer = setInterval(() => this.syncClock(), 4000);
   }
@@ -137,6 +141,15 @@ export class Net {
 
   revive(): void {
     if (this.socket.connected) this.socket.emit("revive");
+  }
+
+  chat(text: string): Promise<ChatResult> {
+    if (!this.socket.connected) return Promise.resolve({ ok: false, reason: "offline" });
+    return new Promise((resolve) => {
+      this.socket.timeout(3000).emit("chat", text, (err: unknown, res: ChatResult) => {
+        resolve(err || !res ? { ok: false, reason: "didn't send" } : res);
+      });
+    });
   }
 
   requestSync(): void {

@@ -20,6 +20,13 @@ leaderboard: **who did this** (damage dealt, with share of the total and a
 **REVIVE**; he also comes back on his own after 20 s. Wall damage tuning
 lives in `lib/protocol.ts` (`HURT_*`).
 
+### Chat
+
+Press **Enter** (or `/`) to chat with everyone online, **Esc** to close. On
+phones, tap the chat bubble bottom-left. New players see the last 40
+messages. The server caps messages at 140 characters and 5 per 10 seconds,
+blocks repeats, and replaces links with `[link]`. History is in memory only.
+
 ### Inventory
 
 The hotbar at the bottom holds **hand** (grab and throw), **whip**,

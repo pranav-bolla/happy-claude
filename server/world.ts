@@ -17,7 +17,11 @@ import {
   MAX_HP,
   REVIVE_LOCK_MS,
   BOARD_SIZE,
+  CHAT_HISTORY,
+  CHAT_MAX_LEN,
   wallDamage,
+  type ChatMessage,
+  type ChatResult,
   type Board,
   type BoardEntry,
   type Round,
@@ -53,6 +57,8 @@ interface Player extends PlayerIdentity {
   lastCursorAt: number;
   /** item id → time it's usable again */
   readyAt: Map<string, number>;
+  /** recent chat send times, for rate limiting */
+  chatTimes: number[];
 }
 
 interface Held {
@@ -92,6 +98,22 @@ function newRound(id: number): Round {
   };
 }
 
+/** At most CHAT_BURST messages per window, and a small gap between each. */
+const CHAT_WINDOW_MS = 10_000;
+const CHAT_BURST = 5;
+const CHAT_MIN_GAP_MS = 600;
+const URL_RE = /\b(?:https?:\/\/|www\.)\S+|\b[a-z0-9-]+\.(?:com|net|org|io|gg|xyz|ru|co|ly|me|app|dev)(?:\/\S*)?/gi;
+
+/** Strip control chars, collapse whitespace, cap length, no links (spam). */
+function cleanChat(raw: string): string {
+  return raw
+    .replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(URL_RE, "[link]")
+    .slice(0, CHAT_MAX_LEN);
+}
+
 const isNum = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n);
 const clamp = (n: number, lo: number, hi: number) => (n < lo ? lo : n > hi ? hi : n);
 const fmt = (n: number) => Math.round(n).toLocaleString("en-US");
@@ -129,6 +151,7 @@ export class World {
   private seq = 0;
   /** per-player damage / healing this life (survives disconnects) */
   private tally = new Map<string, { who: PlayerIdentity; dmg: number; heal: number }>();
+  private chatLog: ChatMessage[] = [];
 
   constructor(
     private io: Server,
@@ -155,6 +178,7 @@ export class World {
       lastDragAt: 0,
       lastCursorAt: 0,
       readyAt: new Map(),
+      chatTimes: [],
     };
     this.players.set(player.id, player);
 
@@ -165,6 +189,7 @@ export class World {
       players: this.players.size,
       stats: this.stats.get(),
       round: this.round,
+      chat: this.chatLog,
     };
     socket.emit("welcome", welcome);
     this.io.emit("players", this.players.size);
@@ -182,6 +207,10 @@ export class World {
     socket.on("cursor", (c: CursorInput) => this.handleCursor(player, c));
     socket.on("revive", () => this.revive(player));
     socket.on("use", (u: UseInput) => this.handleUse(player, u));
+    socket.on("chat", (text: unknown, ack: unknown) => {
+      const result = this.handleChat(player, text);
+      if (typeof ack === "function") ack(result);
+    });
     socket.on("sync", () => {
       socket.emit("world", this.snapshot());
       socket.emit("round", this.round);
@@ -326,6 +355,31 @@ export class World {
       x: r1(clamp(c.x, -200, WORLD_W + 200)),
       y: r1(clamp(c.y, -200, WORLD_H + 200)),
     });
+  }
+
+  // ── chat ──────────────────────────────────────────────────────────────
+
+  private handleChat(player: Player, raw: unknown): ChatResult {
+    if (typeof raw !== "string") return { ok: false, reason: "bad message" };
+    const text = cleanChat(raw);
+    if (!text) return { ok: false, reason: "empty" };
+
+    const now = Date.now();
+    player.chatTimes = player.chatTimes.filter((t) => now - t < CHAT_WINDOW_MS);
+    const last = player.chatTimes[player.chatTimes.length - 1] ?? 0;
+    if (now - last < CHAT_MIN_GAP_MS || player.chatTimes.length >= CHAT_BURST) {
+      return { ok: false, reason: "slow down" };
+    }
+    // same thing twice in a row = spam
+    const prev = this.chatLog.findLast((m) => m.who.id === player.id);
+    if (prev && prev.text === text && now - prev.t < 15000) return { ok: false, reason: "you just said that" };
+    player.chatTimes.push(now);
+
+    const msg: ChatMessage = { id: ++this.seq, who: this.identity(player), text, t: now };
+    this.chatLog.push(msg);
+    if (this.chatLog.length > CHAT_HISTORY) this.chatLog.shift();
+    this.io.emit("chat", msg);
+    return { ok: true };
   }
 
   // ── items ─────────────────────────────────────────────────────────────
