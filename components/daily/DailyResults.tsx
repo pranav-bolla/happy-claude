@@ -4,7 +4,9 @@ import { motion } from "framer-motion";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { DailyStats } from "@/lib/client/dailyStore";
-import { moveColor, msUntilNextDay, shareText, type DailyResult } from "@/lib/daily";
+import { ITEM_ART } from "@/lib/client/itemArt";
+import { moveColor, msUntilNextDay, shareText, shareUrl, type DailyResult, type SharedRun } from "@/lib/daily";
+import { ITEMS, type ItemId } from "@/lib/items";
 
 export interface GlobalDaily {
   players: number;
@@ -31,16 +33,82 @@ function beatPct(r: DailyResult, g: GlobalDaily): number | null {
   return Math.round((beaten / (g.players - 1)) * 100);
 }
 
+function versus(r: DailyResult, c: SharedRun): string {
+  const theirs = c.grid.length;
+  if (!r.killed && !c.killed) return "🎯 neither of you could KO him. tie.";
+  if (!r.killed) return `🎯 they KO'd him in ${theirs}. you didn't.`;
+  if (!c.killed || r.moves < theirs) return `🎯 you beat their ${c.killed ? theirs : "X"}. send it back.`;
+  if (r.moves === theirs) return `🎯 tied with their ${theirs}.`;
+  return `🎯 they got him in ${theirs}. so close.`;
+}
+
+/** Each move: the item used on top, how hard it hit below. */
+export function RunGrid({
+  actions,
+  grid,
+  killed,
+  size,
+  animate = false,
+}: {
+  actions?: ItemId[];
+  grid: number[];
+  killed: boolean;
+  size: number;
+  animate?: boolean;
+}) {
+  const icons = actions?.length === grid.length;
+  return (
+    <div className="flex flex-wrap gap-1">
+      {grid.map((d, i) => {
+        const isKill = killed && i === grid.length - 1;
+        return (
+          <motion.div
+            key={i}
+            initial={animate ? { scale: 0, rotate: -30 } : false}
+            animate={{ scale: 1, rotate: 0 }}
+            transition={{ delay: 0.25 + i * 0.07, type: "spring", stiffness: 500, damping: 20 }}
+            title={`${icons ? `${ITEMS[actions[i]].name}: ` : ""}${Math.round(d)} damage`}
+            className="flex flex-col gap-0.5"
+            style={{ width: size }}
+          >
+            {icons && (
+              <span
+                className="bg-white/10 p-[3px] [image-rendering:pixelated]"
+                style={{ width: size, height: size }}
+                dangerouslySetInnerHTML={{ __html: ITEM_ART[actions[i]] }}
+              />
+            )}
+            <span
+              className="flex items-center justify-center"
+              style={{
+                width: size,
+                height: size,
+                fontSize: size * 0.5,
+                background: isKill ? "#0b0b0c" : moveColor(d),
+                outline: d < 1 && !isKill ? "1px solid rgba(255,255,255,0.15)" : undefined,
+              }}
+            >
+              {isKill ? "💀" : ""}
+            </span>
+          </motion.div>
+        );
+      })}
+    </div>
+  );
+}
+
 export function DailyResults({
   result: r,
   stats,
   global,
   day,
+  challenge,
 }: {
   result: DailyResult;
   stats: DailyStats;
   global: GlobalDaily | null;
   day: number;
+  challenge?: SharedRun | null;
 }) {
   const countdown = useCountdown();
   const [copied, setCopied] = useState(false);
@@ -54,7 +122,7 @@ export function DailyResults({
   const maxCount = Math.max(1, ...Object.values(stats.dist), stats.fails);
 
   const share = async () => {
-    const url = `${window.location.origin}/daily`;
+    const url = shareUrl(window.location.origin, r);
     try {
       if (navigator.share && /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)) {
         await navigator.share({ text: shareText(r, stats.streak), url });
@@ -93,7 +161,6 @@ export function DailyResults({
               <span className="text-[24px] text-white/40">/{r.maxMoves}</span>
               <span className="ml-2 text-[20px] font-bold text-white/60">moves</span>
             </p>
-            <p className="mt-1 font-mono text-[11px] text-white/60">in {(r.ms / 1000).toFixed(1)}s</p>
           </>
         ) : (
           <>
@@ -104,24 +171,13 @@ export function DailyResults({
           </>
         )}
 
-        <div className="mt-3 flex gap-1">
-          {r.grid.map((d, i) => {
-            const isKill = r.killed && i === r.grid.length - 1;
-            return (
-              <motion.div
-                key={i}
-                initial={{ scale: 0, rotate: -30 }}
-                animate={{ scale: 1, rotate: 0 }}
-                transition={{ delay: 0.25 + i * 0.07, type: "spring", stiffness: 500, damping: 20 }}
-                title={`${Math.round(d)} damage`}
-                className="flex h-7 w-7 items-center justify-center text-[14px]"
-                style={{ background: isKill ? "#0b0b0c" : moveColor(d), outline: d < 1 && !isKill ? "1px solid rgba(255,255,255,0.15)" : undefined }}
-              >
-                {isKill ? "💀" : ""}
-              </motion.div>
-            );
-          })}
+        <div className="mt-3">
+          <RunGrid actions={r.actions} grid={r.grid} killed={r.killed} size={28} animate />
         </div>
+
+        {challenge && (
+          <p className="mt-3 font-mono text-[11px] font-bold text-claude">{versus(r, challenge)}</p>
+        )}
 
         {global && (
           <p className="mt-3 font-mono text-[11px] text-white/70">

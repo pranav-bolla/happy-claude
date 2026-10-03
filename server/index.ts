@@ -48,7 +48,7 @@ async function main() {
       .filter((i) => i && i.family === "IPv4" && !i.internal)
       .map((i) => i!.address)
       .find((a) => /^(192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.)/.test(a));
-    console.log(`\n  🟠 WHIP CLAUDE is live`);
+    console.log(`\n  🟠 HAPPY CLAUDE is live`);
     console.log(`     local:   http://localhost:${port}`);
     if (lan) console.log(`     network: http://${lan}:${port}  (open on your phone)`);
     console.log("");

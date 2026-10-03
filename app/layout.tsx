@@ -9,18 +9,18 @@ const SITE_URL =
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
-  title: "WHIP CLAUDE",
+  title: "HAPPY CLAUDE",
   description: "a shared internet experiment. everyone online is fighting over the same Claude.",
   openGraph: {
-    title: "WHIP CLAUDE",
+    title: "HAPPY CLAUDE",
     description: "one Claude. one room. everyone online is fighting over him.",
-    siteName: "WHIP CLAUDE",
+    siteName: "HAPPY CLAUDE",
     url: "/",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "WHIP CLAUDE",
+    title: "HAPPY CLAUDE",
     description: "one Claude. one room. everyone online is fighting over him.",
   },
   icons: {

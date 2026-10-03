@@ -1,7 +1,7 @@
 import { ImageResponse } from "next/og";
 import { CLAUDE, CREAM, INK, OG_SIZE, mascotSrc, ogFonts } from "@/lib/og";
 
-export const alt = "WHIP CLAUDE: one Claude, one room, everyone online fighting over him";
+export const alt = "HAPPY CLAUDE: one Claude, one room, everyone online fighting over him";
 export const size = OG_SIZE;
 export const contentType = "image/png";
 
@@ -47,8 +47,8 @@ export default async function Image() {
         <div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
             <div style={{ width: 28, height: 28, borderRadius: 28, background: CLAUDE }} />
-            <div style={{ fontSize: 78, fontWeight: 900, letterSpacing: 4, color: INK, whiteSpace: "nowrap" }}>
-              WHIP CLAUDE
+            <div style={{ fontSize: 66, fontWeight: 900, letterSpacing: 2, color: INK, whiteSpace: "nowrap" }}>
+              HAPPY CLAUDE
             </div>
           </div>
           <div style={{ marginTop: 18, fontSize: 34, lineHeight: 1.3, color: "#4A4A4A" }}>

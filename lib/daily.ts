@@ -154,21 +154,67 @@ function modifierIndex(day: number): number {
   return Math.floor(mulberry32(day * 7919 + 13)() * MODIFIERS.length);
 }
 
-/** Same buckets as moveSquare, as colours for the on-screen tracker. */
+/** 0 = whiff, 1 = light, 2 = solid, 3 = huge. */
+export type Bucket = 0 | 1 | 2 | 3;
+
+export function damageBucket(damage: number): Bucket {
+  if (damage < 1) return 0;
+  if (damage < 12) return 1;
+  if (damage < 30) return 2;
+  return 3;
+}
+
+const BUCKET_COLORS = ["#1D1D1F", "#FACC15", "#F97316", "#DC2626"];
+const BUCKET_SQUARES = ["⬛", "🟨", "🟧", "🟥"];
+/** Damage that lands in each bucket, for drawing decoded results. */
+const BUCKET_DAMAGE = [0, 6, 20, 40];
+
+/** Colour of one move's damage on the on-screen tracker. */
 export function moveColor(damage: number): string {
-  if (damage < 1) return "#1D1D1F";
-  if (damage < 12) return "#FACC15";
-  if (damage < 30) return "#F97316";
-  return "#DC2626";
+  return BUCKET_COLORS[damageBucket(damage)];
 }
 
 /** Wordle-style square for one move's damage. */
 export function moveSquare(damage: number, killing: boolean): string {
-  if (killing) return "💀";
-  if (damage < 1) return "⬛";
-  if (damage < 12) return "🟨";
-  if (damage < 30) return "🟧";
-  return "🟥";
+  return killing ? "💀" : BUCKET_SQUARES[damageBucket(damage)];
+}
+
+/** What each move was, for the share text. */
+export const MOVE_EMOJI: Partial<Record<ItemId, string>> = {
+  hand: "✋",
+  whip: "🪢",
+  hammer: "🔨",
+  taser: "⚡",
+  bomb: "💣",
+};
+
+const MOVE_CODE: Partial<Record<ItemId, string>> = { hand: "h", whip: "w", hammer: "m", taser: "t", bomb: "b" };
+const CODE_MOVE = Object.fromEntries(Object.entries(MOVE_CODE).map(([k, v]) => [v, k])) as Record<string, ItemId>;
+
+/** A result shrunk to fit in a link, e.g. "3k-h1w2m0h3b2h3" (day, KO or not, move + bucket pairs). */
+export interface SharedRun {
+  day: number;
+  killed: boolean;
+  actions: ItemId[];
+  grid: number[];
+}
+
+export function encodeRun(r: DailyResult): string | null {
+  if (!r.actions || r.actions.length !== r.grid.length) return null;
+  const pairs = r.actions.map((a, i) => `${MOVE_CODE[a] ?? "h"}${damageBucket(r.grid[i])}`).join("");
+  return `${r.day}${r.killed ? "k" : "x"}-${pairs}`;
+}
+
+export function decodeRun(code: string | undefined | null): SharedRun | null {
+  const m = /^(\d{1,5})([kx])-((?:[hwmtb][0-3]){1,20})$/.exec(code ?? "");
+  if (!m) return null;
+  const pairs = m[3].match(/../g)!;
+  return {
+    day: Number(m[1]),
+    killed: m[2] === "k",
+    actions: pairs.map((p) => CODE_MOVE[p[0]]),
+    grid: pairs.map((p) => BUCKET_DAMAGE[Number(p[1])]),
+  };
 }
 
 export interface DailyResult {
@@ -182,16 +228,31 @@ export interface DailyResult {
   hpLeft: number;
   /** damage dealt by each move */
   grid: number[];
+  /** what each move was (missing on results saved before this was tracked) */
+  actions?: ItemId[];
   modifier: string;
 }
 
-/** Omit `url` when the share sheet attaches it separately (that's what gets a link preview). */
+/**
+ * Two rows: what you did, then how hard it hit.
+ * Omit `url` when the share sheet attaches it separately (that's what gets a link preview).
+ */
 export function shareText(r: DailyResult, streak: number, url?: string): string {
   const head = `Daily Claude #${r.day} ${r.killed ? "💀" : "😇"} ${r.killed ? r.moves : "X"}/${r.maxMoves}`;
   const squares = r.grid.map((d, i) => moveSquare(d, r.killed && i === r.grid.length - 1)).join("");
-  const lines = [head, r.modifier, squares];
-  if (!r.killed) lines.push(`he survived with ${Math.ceil(r.hpLeft)} HP`);
-  if (streak > 1) lines.push(`🔥 ${streak} day streak`);
+  const lines = [head];
+  if (r.actions?.length === r.grid.length) lines.push(r.actions.map((a) => MOVE_EMOJI[a] ?? "✋").join(""));
+  lines.push(squares);
+  const tail = [r.modifier];
+  if (!r.killed) tail.push(`he survived with ${Math.ceil(r.hpLeft)} HP`);
+  if (streak > 1) tail.push(`🔥 ${streak}`);
+  lines.push(tail.join(" · "));
   if (url) lines.push(url);
   return lines.join("\n");
+}
+
+/** Link to /daily that carries the result, so the link preview shows this run. */
+export function shareUrl(origin: string, r: DailyResult): string {
+  const code = encodeRun(r);
+  return `${origin}/daily${code ? `?r=${code}` : ""}`;
 }

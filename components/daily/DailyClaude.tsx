@@ -10,21 +10,22 @@ import { Engine, type Expression } from "@/lib/client/engine";
 import { getResult, getStats, hasSeenRules, markRulesSeen, saveResult, type DailyStats } from "@/lib/client/dailyStore";
 import { ITEMS, ITEM_ORDER, type ItemId } from "@/lib/items";
 import { ITEM_ART } from "@/lib/client/itemArt";
-import { dailySpec, dayNumber, moveColor, type DailyResult, type DailySpec } from "@/lib/daily";
-import { DailyResults, type GlobalDaily } from "./DailyResults";
+import { dailySpec, dayNumber, moveColor, type DailyResult, type DailySpec, type SharedRun } from "@/lib/daily";
+import { DailyResults, RunGrid, type GlobalDaily } from "./DailyResults";
 
 type Phase = "intro" | "playing" | "done";
 
 const noop = () => {};
 
-export default function DailyClaude() {
+/** `challenge` is the run from a shared link (?r=...), if any. */
+export default function DailyClaude({ challenge }: { challenge?: SharedRun | null }) {
   const [day, setDay] = useState<number | null>(null);
   useEffect(() => setDay(dayNumber()), []);
   if (day === null) return <main className="fixed inset-0 bg-cream" />;
-  return <DailyGame key={day} day={day} />;
+  return <DailyGame key={day} day={day} challenge={challenge?.day === day ? challenge : null} />;
 }
 
-function DailyGame({ day }: { day: number }) {
+function DailyGame({ day, challenge }: { day: number; challenge: SharedRun | null }) {
   const [spec] = useState<DailySpec>(() => dailySpec(day));
   const loadoutItems: ItemId[] = ["hand", ...ITEM_ORDER.filter((id) => spec.loadout[id])];
 
@@ -60,6 +61,7 @@ function DailyGame({ day }: { day: number }) {
   const game = useRef({
     moves: 0,
     grid: [] as number[],
+    actions: [] as ItemId[],
     counts: { ...spec.loadout } as Partial<Record<ItemId, number>>,
     startedAt: 0,
     hp: spec.hp,
@@ -83,6 +85,7 @@ function DailyGame({ day }: { day: number }) {
         ms: didKill ? Math.round(performance.now() - g.startedAt) : 0,
         hpLeft: Math.max(0, Math.round(g.hp)),
         grid: g.grid.map((d) => Math.round(d)),
+        actions: [...g.actions],
         modifier: spec.modifier.name,
       };
       saveResult(r);
@@ -163,6 +166,7 @@ function DailyGame({ day }: { day: number }) {
           }
           if (g.moves === 0) g.startedAt = performance.now();
           g.grid.push(0);
+          g.actions.push(action);
           g.moves++;
           setGrid([...g.grid]);
           return g.moves - 1;
@@ -348,6 +352,17 @@ function DailyGame({ day }: { day: number }) {
                 ))}
               </div>
 
+              {challenge && (
+                <div className="mt-4 border border-claude/60 bg-claude/10 p-2.5">
+                  <p className="font-mono text-[11px] font-bold tracking-[0.12em] text-claude">
+                    {challenge.killed ? `🎯 BEAT ${challenge.grid.length}/${spec.moves}` : "🎯 THEY COULDN'T KO HIM"}
+                  </p>
+                  <div className="mt-2">
+                    <RunGrid actions={challenge.actions} grid={challenge.grid} killed={challenge.killed} size={18} />
+                  </div>
+                </div>
+              )}
+
               <button
                 type="button"
                 onClick={start}
@@ -408,7 +423,7 @@ function DailyGame({ day }: { day: number }) {
       {/* ── results ── */}
       <AnimatePresence>
         {phase === "done" && result && (
-          <DailyResults result={result} stats={stats} global={global} day={day} />
+          <DailyResults result={result} stats={stats} global={global} day={day} challenge={challenge} />
         )}
       </AnimatePresence>
     </main>

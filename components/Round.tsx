@@ -225,7 +225,7 @@ export function DeathScreen({
     const text = `we killed Claude in ${formatKill(round.killMs)}. time to beat: ${formatKill(stats.bestKillMs)}. your turn →`;
     const url = window.location.href;
     try {
-      if (navigator.share) await navigator.share({ title: "WHIP CLAUDE", text, url });
+      if (navigator.share) await navigator.share({ title: "HAPPY CLAUDE", text, url });
       else {
         await navigator.clipboard.writeText(`${text} ${url}`);
         setCopied(true);

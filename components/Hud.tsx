@@ -19,7 +19,7 @@ export function Header() {
         <span className="relative flex h-3 w-3 items-center justify-center">
           <span className="h-3 w-3 rounded-full bg-claude shadow-[inset_0_-2px_3px_rgba(0,0,0,0.15)]" />
         </span>
-        <h1 className="text-[15px] font-black leading-none tracking-[0.2em] text-ink sm:text-base">WHIP CLAUDE</h1>
+        <h1 className="text-[15px] font-black leading-none tracking-[0.2em] text-ink sm:text-base">HAPPY CLAUDE</h1>
       </div>
       <p className="mt-1.5 pl-5 text-[11px] leading-none tracking-wide text-muted">a shared internet experiment</p>
     </div>

@@ -1,4 +1,7 @@
-@ https://happy-claude-production.up.railway.app/
+# HAPPY CLAUDE
+
+Play: https://happy-claude-production.up.railway.app/ · Daily puzzle:
+https://happy-claude-production.up.railway.app/daily
 
 One object. One shared room. Everyone online fighting over it.
 
@@ -48,20 +51,60 @@ midnight, and puzzle #1 was 2026-10-01. Everyone gets the same arena: a square
 board with bumpers, spiked walls (double damage), a limited set of items, and a
 modifier such as Rubber, Glass Jaw or Heavy. The goal is to KO Claude in as few
 moves as possible. Throws and item uses each count as a move. Only your first
-attempt each day counts. Afterwards you get an emoji share grid (one square per
-move, colored by damage), your streak, a moves histogram, and how you compare with
-everyone else who played today.
+attempt each day counts. Afterwards you get your result, your streak, a
+moves histogram, and how you compare with everyone else who played today.
+
+**Sharing.** The result is two rows of emoji, what you used on each move
+and how hard it hit:
+
+```
+Daily Claude #3 💀 6/12
+✋🪢✋🔨✋💣
+🟨🟧⬛🟥🟧💀
+Heavy · 🔥 2
+```
+
+The link that comes with it carries your run (`/daily?r=3k-h1w2h0m3h2b3`:
+the day, KO or not, then an item letter and damage level for each move). In
+iMessage and other chats, the link preview shows your moves with "can you beat
+it?". A friend who opens the link sees a **🎯 BEAT 6/12** box before they start,
+and their results card says whether they beat you.
 
 - The puzzle is built in `lib/daily.ts`. A seeded RNG turns the day number
   into the spec, so every player gets the same puzzle without a server.
+  Changing the order of random calls in `dailySpec`, or the `MODIFIERS`
+  list, reshuffles every puzzle. Append new things at the end.
 - The game runs entirely in the browser: `Engine` in solo mode with the
   same physics and items as multiplayer.
 - Results and streaks are kept in localStorage (`lib/client/dailyStore.ts`).
 - Global "you beat X%" stats come from `/api/daily`, held in memory
   with one result per IP per day. They reset when the server restarts.
+- Run codes are encoded and decoded in `lib/daily.ts` (`encodeRun` /
+  `decodeRun`). Someone could edit a code to fake a run, but that only
+  changes the preview picture, not anyone's stats.
 
-The main page shows a **DAILY #N** button next to the title. It pulses until
-you've played today's puzzle.
+The main page shows a **Daily Claude** card (a bar under the health bar on
+phones). It has an orange dot until you've played today's puzzle, then shows your
+result. The **–** button shrinks it to a small chip, and **+** brings it
+back. It reopens once each new day. The death screen also links to the daily.
+
+### Link previews
+
+Links get a title, a description and a 1200×630 image, so they look good in
+group chats.
+
+- `app/opengraph-image.tsx` draws the main site image. It's built once at
+  build time.
+- `app/daily/og/route.tsx` draws the daily image. It shows the shared run
+  when the link has `?r=`, or a generic card otherwise.
+- Claude is drawn from the same pixel art as the game (`lib/og.ts`). The fonts
+  (Inter and JetBrains Mono, both free to use) are in `assets/fonts/`
+  because the built-in font has no bold weight.
+- Preview images need the full site address. It comes from `SITE_URL`,
+  then `RAILWAY_PUBLIC_DOMAIN`, then the Railway URL above. Set `SITE_URL` if you
+  add a custom domain.
+- iMessage remembers previews for links it has already seen. To test a
+  change, send a link it hasn't seen before (add `?x=1`).
 
 ## Run locally
 
@@ -105,7 +148,13 @@ npm install
 Open http://localhost:3000/daily. Your first result each day is saved, so
 to play again, open DevTools → Application → Local Storage and delete
 `whip-claude:daily` (plus `whip-claude:daily-rules` to see the rules popup
-again), or use an incognito window.
+again), or use an incognito window. These keys still use the old name on
+purpose. Renaming them would reset everyone's streaks.
+
+- Challenge link: http://localhost:3000/daily?r=3k-h1w2h0m3h2b3 (change the
+  leading `3` to today's puzzle number, or the box won't show)
+- Preview images: http://localhost:3000/opengraph-image,
+  http://localhost:3000/daily/og and http://localhost:3000/daily/og?r=3k-h1w2h0m3h2b3
 
 ## Production
 
@@ -133,7 +182,8 @@ lib/physics.ts             shared deterministic disc physics (server AND client)
                            with optional arena bounds, bumpers and tuning
 lib/protocol.ts            wire types, HP/damage constants, sync design notes
 lib/items.ts               item stats + shared knockback (multiplayer and daily)
-lib/daily.ts               seeded daily puzzle generator + share text
+lib/daily.ts               seeded daily puzzle generator, share text, run codes
+lib/og.ts                  shared pieces for the link-preview images
 lib/client/engine.ts       input, prediction, smoothing, rendering, presence;
                            also runs offline in "solo mode" for Daily Claude
 lib/client/net.ts          socket + server clock estimation; OfflineNet for solo
@@ -142,11 +192,14 @@ lib/client/fx.ts           canvas particles / rings / item effects
 lib/client/sound.ts        synthesized WebAudio sfx (muted by default)
 lib/client/itemArt.ts      pixel-art item icons
 app/page.tsx               the multiplayer room
-app/daily/page.tsx         Daily Claude
+app/opengraph-image.tsx    link-preview image for the main site
+app/daily/page.tsx         Daily Claude (reads ?r= for challenges and previews)
+app/daily/og/route.tsx     link-preview image for /daily, per shared run
 app/api/daily/route.ts     global daily stats (in memory)
-components/                React UI: mascot, HUD, health bar, death screen,
-                           inventory, chat
+components/                React UI: mascot, HUD, daily card, health bar,
+                           death screen, inventory, chat
 components/daily/          Daily Claude game + results/share card
+assets/fonts/              fonts for the preview images
 scripts/bots.ts            fake players for load and feel testing
 ```
 
