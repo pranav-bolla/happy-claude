@@ -1,4 +1,4 @@
-# WHIP CLAUDE
+@ https://happy-claude-production.up.railway.app/
 
 One object. One shared room. Everyone online fighting over it.
 
