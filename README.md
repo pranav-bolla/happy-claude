@@ -39,6 +39,28 @@ knockback and damage, and broadcasts it so everyone sees the animation from
 your cursor. A hit also knocks Claude out of whoever is holding him. The bomb
 sticks to him and goes off after 0.9 s.
 
+### Daily Claude (`/daily`)
+
+A Wordle-style solo puzzle. There's one new puzzle per day at local
+midnight, and puzzle #1 was 2026-10-01. Everyone gets the same arena: a square
+board with bumpers, spiked walls (double damage), a limited set of items, and a
+modifier such as Rubber, Glass Jaw or Heavy. The goal is to KO Claude in as few
+moves as possible. Throws and item uses each count as a move. Only your first
+attempt each day counts. Afterwards you get an emoji share grid (one square per
+move, colored by damage), your streak, a moves histogram, and how you compare with
+everyone else who played today.
+
+- The puzzle is built in `lib/daily.ts`. A seeded RNG turns the day number
+  into the spec, so every player gets the same puzzle without a server.
+- The game runs entirely in the browser: `Engine` in solo mode with the
+  same physics and items as multiplayer.
+- Results and streaks are kept in localStorage (`lib/client/dailyStore.ts`).
+- Global "you beat X%" stats come from `/api/daily`, held in memory
+  with one result per IP per day. They reset when the server restarts.
+
+The main page shows a **DAILY #N** button next to the title. It pulses until
+you've played today's puzzle.
+
 ## Run locally
 
 Node.js lives inside the Python virtual environment (`.venv`, via `nodeenv`),

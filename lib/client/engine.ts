@@ -43,6 +43,9 @@ import {
   wrapAngle,
   type Body,
   type GrabConstraint,
+  type Peg,
+  type PegHit,
+  type PhysicsTune,
   type WallHit,
 } from "../physics";
 import {
@@ -66,13 +69,40 @@ import {
   type Welcome,
 } from "../protocol";
 import { Fx } from "./fx";
-import { Net, type ConnStatus } from "./net";
-import { ITEMS, ITEM_ORDER, type ItemId } from "../items";
+import { Net, OfflineNet, type ConnStatus, type Transport } from "./net";
+import { ITEMS, ITEM_ORDER, applyItemImpulse, type ItemId } from "../items";
 import { ITEM_ART } from "./itemArt";
 import { BROKEN_LINES, GRAB_LINES, HEAL_LINES, IMPACT_LINES, SCARED_LINES, pick } from "./lines";
 import { Sfx } from "./sound";
 
 export type Expression = "idle" | "curious" | "grabbed" | "woozy" | "smashed" | "dead";
+
+type Side = "left" | "right" | "top" | "bottom";
+
+/**
+ * Solo (Daily) mode: no network, a fixed square arena letterboxed into the
+ * viewport, bumpers + spiked walls, and damage applied locally. The game
+ * rules (move budget, loadout) live outside the engine behind `act`.
+ */
+export interface SoloConfig {
+  arena: number;
+  start: { x: number; y: number };
+  pegs: Peg[];
+  spikes: Side[];
+  tune: PhysicsTune;
+  /** multiplier on wall + bumper damage */
+  wallMul: number;
+  maxHp: number;
+  /** screen px kept clear for HUD (re-read on every resize) */
+  insets(): { top: number; bottom: number; side: number };
+  /** Before a grab or item use: return the move index, or a reason to refuse. */
+  act(action: ItemId): number | string;
+  onDamage(move: number, amount: number, hpLeft: number): void;
+  onKill(): void;
+}
+
+/** Spiked walls hurt this much more. */
+const SPIKE_MUL = 2;
 
 export interface EngineDom {
   stage: HTMLDivElement;
@@ -162,7 +192,7 @@ function itemCursor(id: ItemId): string {
 
 export class Engine {
   readonly sound = new Sfx();
-  private net: Net;
+  private net: Transport;
   private fx: Fx;
 
   // viewport mapping (world → screen)
@@ -171,6 +201,18 @@ export class Engine {
   private r = 80;
   private sx = 1;
   private sy = 1;
+  private offX = 0;
+  private offY = 0;
+  private bw = WORLD_W;
+  private bh = WORLD_H;
+
+  // solo (Daily) mode
+  private solo: SoloConfig | null;
+  private maxHp = MAX_HP;
+  private soloHp = MAX_HP;
+  private soloMove = -1;
+  private arenaEls: HTMLDivElement[] = [];
+  private pegEls: HTMLDivElement[] = [];
 
   // simulation
   private sim: Body = createBody();
@@ -241,9 +283,19 @@ export class Engine {
   constructor(
     private dom: EngineDom,
     private ev: EngineEvents,
+    solo?: SoloConfig,
   ) {
     this.fx = new Fx(dom.canvas);
     this.reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    this.solo = solo ?? null;
+    if (solo) {
+      this.net = new OfflineNet();
+      this.bw = this.bh = solo.arena;
+      this.maxHp = this.soloHp = this.hp = solo.maxHp;
+      this.sim = { ...createBody(), x: solo.start.x, y: solo.start.y };
+      this.buildArena(solo);
+      return;
+    }
     this.net = new Net({
       onStatus: (s) => {
         if (s === "disconnected") this.remote = null;
@@ -307,6 +359,8 @@ export class Engine {
     this.cursors.forEach((c) => c.el.remove());
     this.cursors.clear();
     this.bombs.forEach((b) => b.remove());
+    this.arenaEls.forEach((el) => el.remove());
+    this.pegEls.forEach((el) => el.remove());
   }
 
   // ── viewport mapping ──────────────────────────────────────────────────
@@ -318,9 +372,23 @@ export class Engine {
   private resize(): void {
     this.W = window.innerWidth;
     this.H = window.innerHeight;
-    this.r = clamp(Math.min(this.W, this.H) * 0.13, 64, 120);
-    this.sx = (this.W - 2 * this.r) / (WORLD_W - 2 * RADIUS);
-    this.sy = (this.H - 2 * this.r) / (WORLD_H - 2 * RADIUS);
+    if (this.solo) {
+      // one uniform scale so bumpers stay round and the puzzle is the same
+      // shape on every screen
+      const { top, bottom, side } = this.solo.insets();
+      const availW = this.W - side * 2;
+      const availH = this.H - top - bottom;
+      const s = Math.max(0.05, Math.min(availW / this.bw, availH / this.bh));
+      this.sx = this.sy = s;
+      this.r = RADIUS * s;
+      this.offX = (this.W - this.bw * s) / 2;
+      this.offY = top + (availH - this.bh * s) / 2;
+      this.layoutArena();
+    } else {
+      this.r = clamp(Math.min(this.W, this.H) * 0.13, 64, 120);
+      this.sx = (this.W - 2 * this.r) / (WORLD_W - 2 * RADIUS);
+      this.sy = (this.H - 2 * this.r) / (WORLD_H - 2 * RADIUS);
+    }
     const size = `${this.r * 2}px`;
     this.dom.claude.style.width = size;
     this.dom.claude.style.height = size;
@@ -328,23 +396,23 @@ export class Engine {
   }
 
   private toScreenX(x: number): number {
-    return this.r + (x - RADIUS) * this.sx;
+    return this.offX + this.r + (x - RADIUS) * this.sx;
   }
   private toScreenY(y: number): number {
-    return this.r + (y - RADIUS) * this.sy;
+    return this.offY + this.r + (y - RADIUS) * this.sy;
   }
   private toWorldX(px: number): number {
-    return RADIUS + (px - this.r) / this.sx;
+    return RADIUS + (px - this.offX - this.r) / this.sx;
   }
   private toWorldY(py: number): number {
-    return RADIUS + (py - this.r) / this.sy;
+    return RADIUS + (py - this.offY - this.r) / this.sy;
   }
 
   /** Where Claude is drawn right now (world units). */
   private renderPos(): { x: number; y: number; a: number } {
     return {
-      x: clamp(this.sim.x + this.off.x, RADIUS, WORLD_W - RADIUS),
-      y: clamp(this.sim.y + this.off.y, RADIUS, WORLD_H - RADIUS),
+      x: clamp(this.sim.x + this.off.x, RADIUS, this.bw - RADIUS),
+      y: clamp(this.sim.y + this.off.y, RADIUS, this.bh - RADIUS),
       a: this.sim.a + this.off.a,
     };
   }
@@ -380,7 +448,7 @@ export class Engine {
 
     if (!this.alive) {
       this.kickJelly(0, 1, 4);
-      this.showTag("he's dead. hit revive.", "#6B6B6B");
+      if (!this.solo) this.showTag("he's dead. hit revive.", "#6B6B6B");
       return;
     }
     if (this.remote) {
@@ -388,6 +456,7 @@ export class Engine {
       this.kickJelly(0, 1, 5);
       return;
     }
+    if (this.solo && !this.soloAct("hand", e.clientX, e.clientY)) return;
     this.beginHold(e, dx, dy, rp.a);
   }
 
@@ -610,24 +679,136 @@ export class Engine {
     return this.net.serverNow();
   }
 
+  private deathFx(): void {
+    this.hold = null;
+    this.authority = null;
+    this.shake = Math.max(this.shake, 18);
+    this.flash = 1;
+    this.sound.death();
+    navigator.vibrate?.([30, 40, 60]);
+    const rp = this.renderPos();
+    const px = this.toScreenX(rp.x);
+    const py = this.toScreenY(rp.y);
+    for (let i = 0; i < 4; i++) {
+      const a = (i / 4) * Math.PI * 2 + Math.PI / 4;
+      this.fx.impact(px, py, Math.cos(a), Math.sin(a), 1);
+    }
+  }
+
+  // ── solo (Daily) mode ─────────────────────────────────────────────────
+
+  /** Ask the rules for a move. Shows why if refused. */
+  private soloAct(action: ItemId, sx: number, sy: number): boolean {
+    const res = this.solo!.act(action);
+    if (typeof res === "string") {
+      this.popWord(res, sx, sy, "#6B6B6B", true);
+      this.kickJelly(0, 1, 3);
+      return false;
+    }
+    this.soloMove = res;
+    return true;
+  }
+
+  private soloHurt(amount: number, move = this.soloMove): void {
+    if (!this.solo || !this.alive || amount <= 0) return;
+    const applied = Math.min(amount, this.soloHp);
+    this.soloHp -= applied;
+    this.serverDamage = 1 - this.soloHp / this.maxHp;
+    this.solo.onDamage(move, applied, this.soloHp);
+    if (this.soloHp <= 0.001) {
+      this.soloHp = 0;
+      this.alive = false;
+      this.deathFx();
+      this.solo.onKill();
+    } else if (this.serverDamage > 0.5 && Math.random() < 0.25) {
+      this.say(pick(BROKEN_LINES), 1100);
+    }
+  }
+
+  /** Solo: nothing in motion and nothing about to go off. */
+  settled(): boolean {
+    return !this.hold && this.bombs.length === 0 && speedOf(this.sim) < 25 && Math.abs(this.sim.av) < 1;
+  }
+
+  private onPeg(hit: PegHit): void {
+    const el = this.pegEls[hit.peg];
+    if (el && hit.speed > 120) {
+      el.classList.remove("is-hit");
+      void el.offsetWidth;
+      el.classList.add("is-hit");
+    }
+    if (hit.speed < 140) return;
+    const s = clamp((hit.speed - 140) / 2600, 0, 1);
+    this.fx.impact(this.toScreenX(hit.x), this.toScreenY(hit.y), hit.nx, hit.ny, s);
+    this.kickJelly(hit.nx, hit.ny, 5 + s * 14);
+    this.sound.impact(s);
+    if (!this.hold) {
+      const dmg = wallDamage(hit.speed) * (this.solo?.wallMul ?? 1);
+      if (dmg >= 0.5) {
+        this.damageNumber(dmg, "#D97757");
+        this.soloHurt(dmg);
+      }
+    }
+  }
+
+  private buildArena(solo: SoloConfig): void {
+    const make = (cls: string) => {
+      const el = document.createElement("div");
+      el.className = cls;
+      this.dom.stage.insertBefore(el, this.dom.claude);
+      return el;
+    };
+    this.arenaEls.push(make("arena-frame"));
+    for (const side of solo.spikes) {
+      const el = make(`arena-spikes is-${side}`);
+      el.dataset.side = side;
+      this.arenaEls.push(el);
+    }
+    for (let i = 0; i < solo.pegs.length; i++) this.pegEls.push(make("arena-peg"));
+  }
+
+  private layoutArena(): void {
+    const s = this.sx;
+    const x0 = this.offX;
+    const y0 = this.offY;
+    const w = this.bw * s;
+    const h = this.bh * s;
+    const spike = Math.max(10, 26 * s);
+    for (const el of this.arenaEls) {
+      const side = el.dataset.side as Side | undefined;
+      const st = el.style;
+      if (!side) {
+        st.left = `${x0}px`;
+        st.top = `${y0}px`;
+        st.width = `${w}px`;
+        st.height = `${h}px`;
+        continue;
+      }
+      const vertical = side === "left" || side === "right";
+      st.width = vertical ? `${spike}px` : `${w}px`;
+      st.height = vertical ? `${h}px` : `${spike}px`;
+      st.left = `${side === "right" ? x0 + w - spike : x0}px`;
+      st.top = `${side === "bottom" ? y0 + h - spike : y0}px`;
+      st.setProperty("--spike", `${spike}px`);
+    }
+    this.solo?.pegs.forEach((p, i) => {
+      const el = this.pegEls[i];
+      const d = p.r * 2 * s;
+      el.style.width = el.style.height = `${d}px`;
+      el.style.left = `${this.toScreenX(p.x) - d / 2}px`;
+      el.style.top = `${this.toScreenY(p.y) - d / 2}px`;
+    });
+  }
+
+  private wallSide(hit: WallHit): Side {
+    return hit.nx > 0 ? "left" : hit.nx < 0 ? "right" : hit.ny > 0 ? "top" : "bottom";
+  }
+
   private onRound(r: Round): void {
     const wasAlive = this.alive;
     this.alive = r.alive;
     if (wasAlive && !r.alive) {
-      // he's gone
-      this.hold = null;
-      this.authority = null;
-      this.shake = Math.max(this.shake, 18);
-      this.flash = 1;
-      this.sound.death();
-      navigator.vibrate?.([30, 40, 60]);
-      const rp = this.renderPos();
-      const px = this.toScreenX(rp.x);
-      const py = this.toScreenY(rp.y);
-      for (let i = 0; i < 4; i++) {
-        const a = (i / 4) * Math.PI * 2 + Math.PI / 4;
-        this.fx.impact(px, py, Math.cos(a), Math.sin(a), 1);
-      }
+      this.deathFx();
     } else if (r.alive && r.id !== this.roundId) {
       // revived: snap straight to the fresh body at center
       this.forceSnap = true;
@@ -773,10 +954,17 @@ export class Engine {
       grab = this.remoteConstraint(this.remote);
     }
 
+    const solo = this.solo;
     stepBody(this.sim, dt, {
       grab,
       homing: !grab && this.homing,
       onWall: (h) => this.onWall(h),
+      ...(solo && {
+        bounds: { w: this.bw, h: this.bh },
+        pegs: solo.pegs,
+        onPeg: (h: PegHit) => this.onPeg(h),
+        tune: solo.tune,
+      }),
     });
 
     const k = Math.exp(-dt / SMOOTH_TAU);
@@ -802,15 +990,37 @@ export class Engine {
   private onWall(hit: WallHit): void {
     if (hit.speed < 140) return;
     const now = performance.now();
+    const free = !this.hold && !this.remote;
+
+    // solo damage is real (not just a display), so it can't be throttled
+    let soloDmg = 0;
+    let spiked = false;
+    if (this.solo && free && this.alive) {
+      spiked = this.solo.spikes.includes(this.wallSide(hit));
+      soloDmg = wallDamage(hit.speed) * this.solo.wallMul * (spiked ? SPIKE_MUL : 1);
+      if (soloDmg >= 0.5) {
+        this.damageNumber(soloDmg, spiked ? "#B91C1C" : "#D97757");
+        this.soloHurt(soloDmg);
+      }
+    }
+
     if (now - this.lastWallFx < 50) return;
     this.lastWallFx = now;
 
     const s = clamp((hit.speed - 140) / 2600, 0, 1);
-    const cx = this.toScreenX(clamp(hit.x + this.off.x, 0, WORLD_W));
-    const cy = this.toScreenY(clamp(hit.y + this.off.y, 0, WORLD_H));
-    // contact point sits exactly on the screen edge
-    const px = hit.nx > 0 ? 0 : hit.nx < 0 ? this.W : cx;
-    const py = hit.ny > 0 ? 0 : hit.ny < 0 ? this.H : cy;
+    let px: number;
+    let py: number;
+    if (this.solo) {
+      px = this.toScreenX(hit.x);
+      py = this.toScreenY(hit.y);
+    } else {
+      const cx = this.toScreenX(clamp(hit.x + this.off.x, 0, this.bw));
+      const cy = this.toScreenY(clamp(hit.y + this.off.y, 0, this.bh));
+      // contact point sits exactly on the screen edge
+      px = hit.nx > 0 ? 0 : hit.nx < 0 ? this.W : cx;
+      py = hit.ny > 0 ? 0 : hit.ny < 0 ? this.H : cy;
+    }
+    if (spiked && soloDmg >= 1) this.fx.ring(px, py, "#B91C1C", 50 + soloDmg * 3);
     this.fx.impact(px, py, hit.nx, hit.ny, s);
     this.kickJelly(hit.nx, hit.ny, 5 + s * 16);
     this.sound.impact(s);
@@ -822,8 +1032,7 @@ export class Engine {
       this.say(pick(IMPACT_LINES), 1200);
     }
     if (this.hold && hit.speed > 600) navigator.vibrate?.(12);
-    const free = !this.hold && !this.remote;
-    const dmg = this.alive && free ? wallDamage(hit.speed) : 0;
+    const dmg = this.alive && free && !this.solo ? wallDamage(hit.speed) : 0;
     if (dmg >= 1 && now - this.lastWallNumber > 250) {
       this.lastWallNumber = now;
       this.damageNumber(dmg, "#D97757");
@@ -945,7 +1154,7 @@ export class Engine {
     this.flash *= Math.exp(-dt * 5);
     d.hurt.style.opacity = Math.max(this.flash, this.damage * 0.3).toFixed(3);
 
-    const hp = Math.round(MAX_HP * (1 - this.serverDamage));
+    const hp = this.solo ? Math.ceil(this.soloHp) : Math.round(this.maxHp * (1 - this.serverDamage));
     if (hp !== this.hp) {
       this.hp = hp;
       this.ev.onHp(hp);
@@ -1020,12 +1229,12 @@ export class Engine {
       this.ev.onFirstGrab();
     }
     if (!this.alive) {
-      this.showTag("he's dead. hit revive.", "#6B6B6B");
+      if (!this.solo) this.showTag("he's dead. hit revive.", "#6B6B6B");
       return;
     }
     const now = performance.now();
-    if ((this.readyAt.get(def.id) ?? 0) > now) return;
-    if (def.heal && this.hp >= MAX_HP) {
+    if (!this.solo && (this.readyAt.get(def.id) ?? 0) > now) return;
+    if (def.heal && this.hp >= this.maxHp) {
       this.popWord("already full", sx, sy, "#6B6B6B", true);
       return;
     }
@@ -1038,11 +1247,40 @@ export class Engine {
       this.popWord("too far", sx, sy, "#6B6B6B", true);
       return;
     }
+    if (this.solo) {
+      if (!this.soloAct(def.id, sx, sy)) return;
+      this.playUse(def.id, sx, sy, "#D97757", 1);
+      this.soloItem(def.id, this.toWorldX(sx), this.toWorldY(sy));
+      navigator.vibrate?.(14);
+      return;
+    }
     this.readyAt.set(def.id, now + def.cooldownMs);
     this.ev.onCooldown(def.id, def.cooldownMs);
     this.net.use({ item: def.id, x: this.toWorldX(sx), y: this.toWorldY(sy) });
     this.playUse(def.id, sx, sy, this.me?.color ?? "#D97757", 1);
     navigator.vibrate?.(14);
+  }
+
+  /** Solo: same knockback as the server, landing in sync with the animation. */
+  private soloItem(item: ItemId, wx: number, wy: number): void {
+    const def = ITEMS[item];
+    const move = this.soloMove;
+    const land = () => {
+      if (!this.alive) return;
+      if (this.hold) this.hold = null; // knocked out of your own hands
+      applyItemImpulse(this.sim, item, wx, wy);
+      this.damageNumber(def.damage, "#1D1D1F");
+      this.soloHurt(def.damage, move);
+    };
+    if (item === "bomb") {
+      setTimeout(() => {
+        if (!this.alive) return;
+        land();
+        this.playBoom();
+      }, def.fuseMs ?? 900);
+      return;
+    }
+    setTimeout(land, item === "hammer" ? 150 : item === "whip" ? 90 : 0);
   }
 
   private onUsed(e: UsedEvent): void {

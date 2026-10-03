@@ -3,6 +3,8 @@
  * client (hotbar, animations). "hand" is the default grab-and-throw.
  */
 
+import { clampSpeed, type Body } from "./physics";
+
 export type ItemId = "hand" | "whip" | "hammer" | "taser" | "bomb" | "tokens" | "water";
 
 export interface ItemDef {
@@ -34,6 +36,53 @@ export const ITEMS: Record<ItemId, ItemDef> = {
 };
 
 export const ITEM_ORDER: ItemId[] = ["hand", "whip", "hammer", "taser", "bomb", "tokens", "water"];
+
+/**
+ * Knockback for a hit from pointer (px, py). Shared by the multiplayer
+ * server and the on-device Daily mode so both feel identical.
+ */
+export function applyItemImpulse(b: Body, item: ItemId, px: number, py: number, rand: () => number = Math.random): void {
+  let dx = b.x - px;
+  let dy = b.y - py;
+  const d = Math.hypot(dx, dy);
+  if (d < 1) {
+    const a = rand() * Math.PI * 2;
+    dx = Math.cos(a);
+    dy = Math.sin(a);
+  } else {
+    dx /= d;
+    dy /= d;
+  }
+  const rnd = (k: number) => (rand() - 0.5) * k;
+  switch (item) {
+    case "whip":
+      b.vx += dx * 1700;
+      b.vy += dy * 1700;
+      b.av += (dx * dy >= 0 ? 1 : -1) * 14;
+      break;
+    case "hammer":
+      // straight down into the floor
+      b.vx = b.vx * 0.3 + dx * 500;
+      b.vy = b.vy * 0.3 + 2800;
+      b.av += rnd(16);
+      break;
+    case "taser": {
+      const a = rand() * Math.PI * 2;
+      b.vx = b.vx * 0.4 + Math.cos(a) * 900;
+      b.vy = b.vy * 0.4 + Math.sin(a) * 900;
+      b.av += rnd(50);
+      break;
+    }
+    case "bomb":
+      b.vx += dx * 4600 + rnd(800);
+      b.vy += dy * 4600 + rnd(800);
+      b.av += rnd(40);
+      break;
+    default:
+      return;
+  }
+  clampSpeed(b);
+}
 
 export function isHealing(id: ItemId): boolean {
   return (ITEMS[id].heal ?? 0) > 0;

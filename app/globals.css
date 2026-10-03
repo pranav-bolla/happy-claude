@@ -615,6 +615,88 @@ body {
   color: #6b6b6b;
 }
 
+.inv-count {
+  position: absolute;
+  right: 0.25rem;
+  top: 0.15rem;
+  font-size: 9px;
+  font-weight: 800;
+  color: #1d1d1f;
+  font-variant-numeric: tabular-nums;
+}
+
+.inv-slot.is-empty {
+  opacity: 0.35;
+}
+
+.inv-slot.is-empty .inv-icon {
+  filter: grayscale(1);
+}
+
+/* ── daily arena ───────────────────────────────────────────────────── */
+
+.arena-frame,
+.arena-spikes,
+.arena-peg {
+  position: absolute;
+  pointer-events: none;
+}
+
+.arena-frame {
+  border: 2px solid rgba(29, 29, 31, 0.85);
+  background: rgba(255, 255, 255, 0.35);
+  box-shadow:
+    6px 6px 0 rgba(217, 119, 87, 0.85),
+    inset 0 0 40px rgba(29, 29, 31, 0.04);
+}
+
+/* saw-tooth spikes pointing into the arena */
+.arena-spikes {
+  --spike: 20px;
+}
+.arena-spikes.is-left {
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1 1' preserveAspectRatio='none'%3E%3Cpath d='M0 0L1 .5L0 1Z' fill='%23B91C1C'/%3E%3C/svg%3E")
+    0 0 / 100% var(--spike) repeat-y;
+}
+.arena-spikes.is-right {
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1 1' preserveAspectRatio='none'%3E%3Cpath d='M1 0L0 .5L1 1Z' fill='%23B91C1C'/%3E%3C/svg%3E")
+    0 0 / 100% var(--spike) repeat-y;
+}
+.arena-spikes.is-top {
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1 1' preserveAspectRatio='none'%3E%3Cpath d='M0 0L.5 1L1 0Z' fill='%23B91C1C'/%3E%3C/svg%3E")
+    0 0 / var(--spike) 100% repeat-x;
+}
+.arena-spikes.is-bottom {
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1 1' preserveAspectRatio='none'%3E%3Cpath d='M0 1L.5 0L1 1Z' fill='%23B91C1C'/%3E%3C/svg%3E")
+    0 0 / var(--spike) 100% repeat-x;
+}
+
+.arena-peg {
+  border-radius: 9999px;
+  background: radial-gradient(circle at 35% 30%, #f2b79b, #d97757 55%, #a8502f);
+  border: 2px solid #1d1d1f;
+  box-shadow: 3px 3px 0 #1d1d1f;
+}
+
+.arena-peg.is-hit {
+  animation: peg-hit 0.25s ease-out;
+}
+
+@keyframes peg-hit {
+  0% {
+    scale: 1;
+    filter: brightness(1);
+  }
+  30% {
+    scale: 1.18;
+    filter: brightness(1.5);
+  }
+  100% {
+    scale: 1;
+    filter: brightness(1);
+  }
+}
+
 .inv-slot.is-active .inv-name {
   color: #d97757;
 }

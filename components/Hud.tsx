@@ -1,8 +1,11 @@
 "use client";
 
 import { AnimatePresence, animate, motion } from "framer-motion";
-import { useEffect, useRef } from "react";
+import Link from "next/link";
+import { useEffect, useRef, useState } from "react";
+import { getResult } from "@/lib/client/dailyStore";
 import type { ConnStatus } from "@/lib/client/net";
+import { dayNumber } from "@/lib/daily";
 import type { FeedItem, Hype, Stats } from "@/lib/protocol";
 import { formatKill } from "./Round";
 
@@ -17,9 +20,34 @@ export function Header() {
           <span className="h-3 w-3 rounded-full bg-claude shadow-[inset_0_-2px_3px_rgba(0,0,0,0.15)]" />
         </span>
         <h1 className="text-[15px] font-black leading-none tracking-[0.2em] text-ink sm:text-base">WHIP CLAUDE</h1>
+        <DailyLink />
       </div>
       <p className="mt-1.5 pl-5 text-[11px] leading-none tracking-wide text-muted">a shared internet experiment</p>
     </div>
+  );
+}
+
+/** "DAILY #N" pill; pulses until you've played today's. */
+function DailyLink() {
+  const [state, setState] = useState<{ day: number; played: boolean } | null>(null);
+  useEffect(() => {
+    const day = dayNumber();
+    setState({ day, played: !!getResult(day) });
+  }, []);
+  if (!state) return null;
+  return (
+    <Link
+      href="/daily"
+      className="pointer-events-auto relative ml-1 flex items-center gap-1 bg-ink px-1.5 py-[3px] font-mono text-[9px] font-bold leading-none tracking-[0.12em] text-cream transition-transform hover:scale-105 active:scale-95 sm:text-[10px]"
+    >
+      DAILY #{state.day}
+      {!state.played && (
+        <span className="absolute -right-1 -top-1 flex h-2 w-2">
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-claude opacity-75" />
+          <span className="relative inline-flex h-2 w-2 rounded-full bg-claude" />
+        </span>
+      )}
+    </Link>
   );
 }
 

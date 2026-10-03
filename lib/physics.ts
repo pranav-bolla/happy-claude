@@ -103,10 +103,37 @@ export interface WallHit {
   speed: number;
 }
 
+/** Round static bumper (Daily mode). Kicks Claude away like a pinball bumper. */
+export interface Peg {
+  x: number;
+  y: number;
+  r: number;
+}
+
+export interface PegHit extends WallHit {
+  peg: number;
+}
+
+/** Per-mode feel overrides (Daily modifiers). */
+export interface PhysicsTune {
+  /** wall/peg bounciness, default RESTITUTION */
+  restitution?: number;
+  /** multiplier on free-flight air drag */
+  drag?: number;
+}
+
+/** Minimum speed a bumper sends him away at. */
+export const BUMPER_KICK = 1100;
+
 export interface StepOptions {
   grab?: GrabConstraint | null;
   homing?: boolean;
   onWall?: (hit: WallHit) => void;
+  /** arena size; defaults to WORLD_W x WORLD_H */
+  bounds?: { w: number; h: number };
+  pegs?: Peg[];
+  onPeg?: (hit: PegHit) => void;
+  tune?: PhysicsTune;
 }
 
 export function createBody(): Body {
@@ -198,7 +225,8 @@ function substep(b: Body, h: number, elapsed: number, opts: StepOptions): void {
     b.av *= Math.exp(-GRAB_SPIN_DAMP * h);
   } else {
     const sp = Math.hypot(b.vx, b.vy);
-    const drag = sp < SLOW_SPEED ? LIN_DRAG + SLOW_DRAG * (1 - sp / SLOW_SPEED) : LIN_DRAG;
+    const lin = LIN_DRAG * (opts.tune?.drag ?? 1);
+    const drag = sp < SLOW_SPEED ? lin + SLOW_DRAG * (1 - sp / SLOW_SPEED) : lin;
     const ld = Math.exp(-drag * h);
     b.vx *= ld;
     b.vy *= ld;
@@ -217,20 +245,52 @@ function substep(b: Body, h: number, elapsed: number, opts: StepOptions): void {
   b.y += b.vy * h;
   b.a = wrapAngle(b.a + b.av * h);
 
+  const e = opts.tune?.restitution ?? RESTITUTION;
+
+  // --- bumpers ---
+  if (opts.pegs) {
+    for (let i = 0; i < opts.pegs.length; i++) {
+      const p = opts.pegs[i];
+      const dx = b.x - p.x;
+      const dy = b.y - p.y;
+      const min = RADIUS + p.r;
+      const d2 = dx * dx + dy * dy;
+      if (d2 >= min * min) continue;
+      const d = Math.sqrt(d2) || 1;
+      const nx = dx / d;
+      const ny = dy / d;
+      b.x = p.x + nx * min;
+      b.y = p.y + ny * min;
+      const vn = collide(b, nx, ny, e, opts.onPeg ? (h) => opts.onPeg!({ ...h, peg: i }) : undefined);
+      // Pinball kick on real hits: up to +25%, capped at BUMPER_KICK. Walls
+      // take away more than that, so he always comes to rest eventually.
+      if (vn > 350 && !opts.grab) {
+        const out = b.vx * nx + b.vy * ny;
+        const want = Math.min(BUMPER_KICK, vn * 1.25);
+        if (out < want) {
+          b.vx += nx * (want - out);
+          b.vy += ny * (want - out);
+        }
+      }
+    }
+  }
+
   // --- screen-edge collisions ---
+  const W = opts.bounds?.w ?? WORLD_W;
+  const H = opts.bounds?.h ?? WORLD_H;
   if (b.x < RADIUS) {
     b.x = RADIUS;
-    collide(b, 1, 0, opts.onWall);
-  } else if (b.x > WORLD_W - RADIUS) {
-    b.x = WORLD_W - RADIUS;
-    collide(b, -1, 0, opts.onWall);
+    collide(b, 1, 0, e, opts.onWall);
+  } else if (b.x > W - RADIUS) {
+    b.x = W - RADIUS;
+    collide(b, -1, 0, e, opts.onWall);
   }
   if (b.y < RADIUS) {
     b.y = RADIUS;
-    collide(b, 0, 1, opts.onWall);
-  } else if (b.y > WORLD_H - RADIUS) {
-    b.y = WORLD_H - RADIUS;
-    collide(b, 0, -1, opts.onWall);
+    collide(b, 0, 1, e, opts.onWall);
+  } else if (b.y > H - RADIUS) {
+    b.y = H - RADIUS;
+    collide(b, 0, -1, e, opts.onWall);
   }
 }
 
@@ -239,20 +299,21 @@ function substep(b: Body, h: number, elapsed: number, opts: StepOptions): void {
  * Includes tangential friction so glancing hits convert slide into spin,
  * and existing spin "kicks" Claude along the wall. Feels alive.
  */
-function collide(b: Body, nx: number, ny: number, onWall?: (hit: WallHit) => void): void {
+/** Returns the impact speed (0 if already separating). */
+function collide(b: Body, nx: number, ny: number, e: number, onWall?: (hit: WallHit) => void): number {
   // contact point relative to center
   const rx = -nx * RADIUS;
   const ry = -ny * RADIUS;
   const pvx = b.vx - b.av * ry;
   const pvy = b.vy + b.av * rx;
   const vn = pvx * nx + pvy * ny;
-  if (vn >= 0) return; // already separating
+  if (vn >= 0) return 0; // already separating
 
   const tx = -ny;
   const ty = nx;
   const vt = pvx * tx + pvy * ty;
 
-  const jn = -(1 + RESTITUTION) * vn * MASS;
+  const jn = -(1 + e) * vn * MASS;
   const rCrossT = rx * ty - ry * tx;
   const mEffT = 1 / (1 / MASS + (rCrossT * rCrossT) / INERTIA);
   const jt = -WALL_GRIP * vt * mEffT;
@@ -267,4 +328,5 @@ function collide(b: Body, nx: number, ny: number, onWall?: (hit: WallHit) => voi
   if (onWall && -vn > 25) {
     onWall({ x: b.x + rx, y: b.y + ry, nx, ny, speed: -vn });
   }
+  return -vn;
 }

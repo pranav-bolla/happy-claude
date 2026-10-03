@@ -41,6 +41,41 @@ export interface NetHandlers {
   onChat(m: ChatMessage): void;
 }
 
+/** What the engine needs from the network. Daily mode plugs in OfflineNet. */
+export interface Transport {
+  readonly connected: boolean;
+  serverNow(): number;
+  grab(req: GrabRequest): Promise<GrabResult>;
+  drag(d: DragInput): void;
+  cursor(c: CursorInput): void;
+  release(r: ReleaseInput): void;
+  use(u: UseInput): void;
+  revive(): void;
+  requestSync(): void;
+  chat(text: string): Promise<ChatResult>;
+  destroy(): void;
+}
+
+export class OfflineNet implements Transport {
+  readonly connected = false;
+  serverNow(): number {
+    return Date.now();
+  }
+  grab(): Promise<GrabResult> {
+    return Promise.resolve({ ok: false });
+  }
+  drag(): void {}
+  cursor(): void {}
+  release(): void {}
+  use(): void {}
+  revive(): void {}
+  requestSync(): void {}
+  chat(): Promise<ChatResult> {
+    return Promise.resolve({ ok: false, reason: "offline" });
+  }
+  destroy(): void {}
+}
+
 const IDENTITY_KEY = "whip-claude:identity";
 
 /**
@@ -48,7 +83,7 @@ const IDENTITY_KEY = "whip-claude:identity";
  * clock. Snapshots are timestamped with server time; knowing the offset and
  * round-trip time lets the engine fast-forward each snapshot to "now".
  */
-export class Net {
+export class Net implements Transport {
   private socket: Socket;
   private clockSamples: { rtt: number; offset: number }[] = [];
   private clockTimer: ReturnType<typeof setInterval> | null = null;

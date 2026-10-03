@@ -46,7 +46,7 @@ import {
   type Snapshot,
   type Welcome,
 } from "../lib/protocol";
-import { ITEMS, isItemId } from "../lib/items";
+import { ITEMS, applyItemImpulse, isItemId, type ItemId } from "../lib/items";
 import { cityFromHeaders, createIdentity } from "./identity";
 import type { StatsStore } from "./stats";
 
@@ -435,51 +435,8 @@ export class World {
     this.emitUsed(player, u, "hit", def.damage, true);
   }
 
-  private applyItem(item: string, px: number, py: number): void {
-    const b = this.body;
-    let dx = b.x - px;
-    let dy = b.y - py;
-    const d = Math.hypot(dx, dy);
-    if (d < 1) {
-      const a = Math.random() * Math.PI * 2;
-      dx = Math.cos(a);
-      dy = Math.sin(a);
-    } else {
-      dx /= d;
-      dy /= d;
-    }
-    const rnd = (k: number) => (Math.random() - 0.5) * k;
-    switch (item) {
-      case "whip":
-        b.vx += dx * 1700;
-        b.vy += dy * 1700;
-        b.av += (dx * dy >= 0 ? 1 : -1) * 14;
-        break;
-      case "hammer":
-        // straight down into the floor
-        b.vx = b.vx * 0.3 + dx * 500;
-        b.vy = b.vy * 0.3 + 2800;
-        b.av += rnd(16);
-        break;
-      case "taser": {
-        const a = Math.random() * Math.PI * 2;
-        b.vx = b.vx * 0.4 + Math.cos(a) * 900;
-        b.vy = b.vy * 0.4 + Math.sin(a) * 900;
-        b.av += rnd(50);
-        break;
-      }
-      case "bomb":
-        b.vx += dx * 4600 + rnd(800);
-        b.vy += dy * 4600 + rnd(800);
-        b.av += rnd(40);
-        break;
-    }
-    const s = Math.hypot(b.vx, b.vy);
-    if (s > MAX_SPEED) {
-      b.vx *= MAX_SPEED / s;
-      b.vy *= MAX_SPEED / s;
-    }
-    b.av = clamp(b.av, -MAX_SPIN, MAX_SPIN);
+  private applyItem(item: ItemId, px: number, py: number): void {
+    applyItemImpulse(this.body, item, px, py);
     this.epoch += 1;
   }
 
