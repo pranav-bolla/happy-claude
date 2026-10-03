@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import ClaudeMascot from "./ClaudeMascot";
-import { Feed, Header, Hint, HypeText, SoundToggle, StatsBar, StatusPill } from "./Hud";
+import { DailyCard, Feed, Header, Hint, HypeText, SoundToggle, StatsBar, StatusPill } from "./Hud";
 import { Chat } from "./Chat";
 import { Inventory, type Cooldowns } from "./Inventory";
 import { DeathScreen, HealthBar } from "./Round";
@@ -198,6 +198,7 @@ export default function WhipClaude() {
       <Hint visible={hint} />
       <HypeText hype={hype} />
       <Header />
+      <DailyCard />
       <HealthBar hp={hp} round={round} now={now} />
       <StatusPill status={status} players={players} />
       <Feed items={feed} />

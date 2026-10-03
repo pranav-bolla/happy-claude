@@ -1,6 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion, useAnimationControls } from "framer-motion";
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import {
   AUTO_REVIVE_MS,
@@ -309,6 +310,13 @@ export function DeathScreen({
               </button>
             </div>
             <p className="mt-2.5 text-center font-mono text-[10px] text-white/40">auto-revive in {autoIn}s</p>
+            <Link
+              href="/daily"
+              className="mt-3 flex items-center justify-between border-t border-white/10 pt-3 font-mono text-[11px] font-bold tracking-[0.12em] text-claude transition-colors hover:text-white"
+            >
+              <span>WHILE YOU WAIT: DAILY CLAUDE</span>
+              <span>→</span>
+            </Link>
           </motion.div>
         </motion.div>
       )}

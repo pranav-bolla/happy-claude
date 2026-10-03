@@ -2,10 +2,10 @@
 
 import { AnimatePresence, animate, motion } from "framer-motion";
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
-import { getResult } from "@/lib/client/dailyStore";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { getResult, getStats } from "@/lib/client/dailyStore";
 import type { ConnStatus } from "@/lib/client/net";
-import { dayNumber } from "@/lib/daily";
+import { dailySpec, dayNumber, type DailyResult } from "@/lib/daily";
 import type { FeedItem, Hype, Stats } from "@/lib/protocol";
 import { formatKill } from "./Round";
 
@@ -20,34 +20,170 @@ export function Header() {
           <span className="h-3 w-3 rounded-full bg-claude shadow-[inset_0_-2px_3px_rgba(0,0,0,0.15)]" />
         </span>
         <h1 className="text-[15px] font-black leading-none tracking-[0.2em] text-ink sm:text-base">WHIP CLAUDE</h1>
-        <DailyLink />
       </div>
       <p className="mt-1.5 pl-5 text-[11px] leading-none tracking-wide text-muted">a shared internet experiment</p>
     </div>
   );
 }
 
-/** "DAILY #N" pill; pulses until you've played today's. */
-function DailyLink() {
-  const [state, setState] = useState<{ day: number; played: boolean } | null>(null);
+interface DailyState {
+  day: number;
+  modifier: string;
+  result: DailyResult | null;
+  streak: number;
+  minimized: boolean;
+}
+
+/** Stores the day it was minimized on, so each new puzzle shows the full card once. */
+const DAILY_MIN_KEY = "whip-claude:daily-card-min";
+
+/** Day-dependent, so it's read after mount to avoid a hydration mismatch. */
+function useDaily(): [DailyState | null, (minimized: boolean) => void] {
+  const [state, setState] = useState<DailyState | null>(null);
   useEffect(() => {
     const day = dayNumber();
-    setState({ day, played: !!getResult(day) });
+    let minimized = false;
+    try {
+      minimized = Number(localStorage.getItem(DAILY_MIN_KEY)) === day;
+    } catch {
+      /* private mode */
+    }
+    setState({
+      day,
+      modifier: dailySpec(day).modifier.name,
+      result: getResult(day),
+      streak: getStats(day).streak,
+      minimized,
+    });
   }, []);
-  if (!state) return null;
+  const setMinimized = useCallback((minimized: boolean) => {
+    setState((s) => {
+      if (!s) return s;
+      try {
+        if (minimized) localStorage.setItem(DAILY_MIN_KEY, String(s.day));
+        else localStorage.removeItem(DAILY_MIN_KEY);
+      } catch {
+        /* private mode */
+      }
+      return { ...s, minimized };
+    });
+  }, []);
+  return [state, setMinimized];
+}
+
+function PingDot({ className = "" }: { className?: string }) {
   return (
-    <Link
-      href="/daily"
-      className="pointer-events-auto relative ml-1 flex items-center gap-1 bg-ink px-1.5 py-[3px] font-mono text-[9px] font-bold leading-none tracking-[0.12em] text-cream transition-transform hover:scale-105 active:scale-95 sm:text-[10px]"
+    <span className={`pointer-events-none absolute flex h-3 w-3 ${className}`}>
+      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-claude opacity-75" />
+      <span className="relative inline-flex h-3 w-3 rounded-full border-2 border-cream bg-claude" />
+    </span>
+  );
+}
+
+/**
+ * Call to action for today's puzzle: a bar under the health bar on small
+ * screens, a card under the title on desktop.
+ */
+export function DailyCard() {
+  const [daily, setMinimized] = useDaily();
+  if (!daily) return null;
+  const { day, modifier, result, streak, minimized } = daily;
+  const fresh = !result;
+
+  if (minimized) {
+    return (
+      <motion.div
+        key="min"
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="absolute left-1/2 top-[calc(max(1.25rem,env(safe-area-inset-top))+7.6rem)] flex -translate-x-1/2 font-mono text-[10px] font-bold tracking-[0.12em] lg:left-8 lg:top-24 lg:translate-x-0"
+      >
+        <Link
+          href="/daily"
+          className="relative flex items-center gap-1.5 bg-ink px-2.5 py-1.5 text-cream transition-colors hover:text-claude"
+        >
+          DAILY #{day} →
+          {fresh && <PingDot className="-left-1.5 -top-1.5" />}
+        </Link>
+        <button
+          type="button"
+          onClick={() => setMinimized(false)}
+          aria-label="Expand daily puzzle"
+          title="Expand"
+          className="border-l border-white/15 bg-ink px-2 text-white/60 transition-colors hover:text-white"
+        >
+          +
+        </button>
+      </motion.div>
+    );
+  }
+
+  return (
+    <motion.div
+      key="full"
+      initial={{ opacity: 0, y: -8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ type: "spring", stiffness: 300, damping: 24 }}
+      className={`absolute left-1/2 top-[calc(max(1.25rem,env(safe-area-inset-top))+7.6rem)] flex w-[min(88vw,300px)] -translate-x-1/2 lg:left-8 lg:top-24 lg:block lg:w-[250px] lg:translate-x-0 ${
+        fresh ? "shadow-[4px_4px_0_#D97757] lg:shadow-[6px_6px_0_#D97757]" : "shadow-[4px_4px_0_rgba(29,29,31,0.15)]"
+      }`}
     >
-      DAILY #{state.day}
-      {!state.played && (
-        <span className="absolute -right-1 -top-1 flex h-2 w-2">
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-claude opacity-75" />
-          <span className="relative inline-flex h-2 w-2 rounded-full bg-claude" />
-        </span>
-      )}
-    </Link>
+      {fresh && <PingDot className="-right-1.5 -top-1.5 z-10" />}
+      <button
+        type="button"
+        onClick={() => setMinimized(true)}
+        aria-label="Minimize daily puzzle"
+        title="Minimize"
+        className="order-last flex w-9 shrink-0 items-center justify-center border-l border-white/15 bg-ink font-mono text-[14px] font-bold text-white/50 transition-colors hover:text-white lg:absolute lg:right-2 lg:top-2 lg:z-10 lg:h-6 lg:w-6 lg:border-0"
+      >
+        –
+      </button>
+      <Link
+        href="/daily"
+        className="group relative block min-w-0 flex-1 bg-ink text-cream transition-transform active:scale-[0.98] lg:hover:-translate-y-0.5"
+      >
+        {/* small screens: one row */}
+        <div className="flex items-center gap-2 px-3 py-2 font-mono text-[11px] font-bold tracking-[0.12em] lg:hidden">
+          <span className="text-claude">DAILY #{day}</span>
+          <span className="truncate font-medium normal-case tracking-normal text-white/60">
+            {fresh ? modifier : result.killed ? `KO in ${result.moves}` : "survived"}
+            {!fresh && streak > 0 && ` · 🔥${streak}`}
+          </span>
+          <span className="ml-auto shrink-0 transition-transform group-hover:translate-x-0.5">
+            {fresh ? "PLAY →" : "RESULTS →"}
+          </span>
+        </div>
+
+        {/* desktop: card */}
+        <div className="hidden p-3.5 lg:block">
+          <p className="font-mono text-[10px] font-bold tracking-[0.22em] text-claude">
+            {fresh ? "NEW TODAY" : "PLAYED TODAY"}
+          </p>
+          <p className="mt-1 text-[22px] font-black leading-none tracking-tight">Daily Claude #{day}</p>
+          <p className="mt-2 text-[12px] leading-snug text-white/65">
+            {fresh ? (
+              <>
+                KO him in the fewest moves. Same puzzle for everyone. Today: <b className="text-white">{modifier}</b>.
+              </>
+            ) : result.killed ? (
+              <>
+                You KO&apos;d him in <b className="text-white">{result.moves}</b>/{result.maxMoves} moves.
+                {streak > 0 && <> 🔥 {streak} day streak.</>}
+              </>
+            ) : (
+              <>He survived today. Come back tomorrow.</>
+            )}
+          </p>
+          <span
+            className={`mt-3 flex items-center justify-center py-2 font-mono text-[12px] font-bold tracking-[0.16em] transition-[filter] group-hover:brightness-110 ${
+              fresh ? "bg-claude text-ink" : "border border-white/20 text-white/90"
+            }`}
+          >
+            {fresh ? "PLAY TODAY'S →" : "SEE RESULTS →"}
+          </span>
+        </div>
+      </Link>
+    </motion.div>
   );
 }
 
@@ -195,7 +331,7 @@ export function StatsBar({
 
 export function Feed({ items }: { items: FeedItem[] }) {
   return (
-    <div className="pointer-events-none absolute left-5 top-[calc(max(1.25rem,env(safe-area-inset-top))+7.5rem)] flex w-[min(80vw,340px)] flex-col items-start gap-2 sm:bottom-44 sm:left-8 sm:top-auto sm:flex-col-reverse">
+    <div className="pointer-events-none absolute left-5 top-[calc(max(1.25rem,env(safe-area-inset-top))+10.75rem)] flex w-[min(80vw,340px)] flex-col items-start gap-2 sm:bottom-44 sm:left-8 sm:top-auto sm:flex-col-reverse">
       <AnimatePresence initial={false}>
         {items.map((item) => (
           <motion.div
