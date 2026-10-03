@@ -1,5 +1,7 @@
 # WHIP CLAUDE
 
+@ https://happy-claude-production.up.railway.app/
+
 One object. One shared room. Everyone online fighting over it.
 
 A real-time multiplayer physics toy: every visitor grabs, swings and whips the
