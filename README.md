@@ -4,7 +4,9 @@ One object. One shared room. Everyone online fighting over it.
 
 A real-time multiplayer physics toy: every visitor grabs, swings and whips the
 same Claude. The server is authoritative; browsers predict locally and smooth
-corrections so it stays at 60 fps.
+corrections so it stays at 60 fps. Players can hurt him with items or heal
+him, chat with everyone online, and come back each day for **Daily Claude**,
+a solo puzzle with a shareable result.
 
 ## The game
 
@@ -98,6 +100,13 @@ npm install
    npm run bots -- 8         # 8 bots
    ```
 
+## Test Daily Claude
+
+Open http://localhost:3000/daily. Your first result each day is saved, so
+to play again, open DevTools → Application → Local Storage and delete
+`whip-claude:daily` (plus `whip-claude:daily-rules` to see the rules popup
+again), or use an incognito window.
+
 ## Production
 
 ```bash
@@ -108,22 +117,37 @@ npm start                    # PORT=3000 by default
 Deploy anywhere that runs a long-lived Node process with WebSockets
 (Railway, Render, Fly.io, a VPS). A `Dockerfile` is included. Serverless
 platforms such as Vercel functions can't hold the WebSocket room. Run one
-instance: the room lives in memory.
+instance (on Railway, keep replicas at 1). The room, chat history, kill
+record and daily stats all live in memory and reset on redeploy. Players'
+own daily streaks are stored in their browsers and aren't affected.
 
 ## Architecture
 
 ```
-server/index.ts      Next.js + Socket.IO on one HTTP server
-server/world.ts      the authoritative room: physics loop, ownership, events
-server/stats.ts      StatsStore interface (in-memory now; swap for Redis/DB)
-server/identity.ts   anonymous names/colors, coarse city from edge headers
-lib/physics.ts       shared deterministic disc physics (server AND client)
-lib/protocol.ts      wire types + sync design notes
-lib/client/engine.ts input, prediction, smoothing, rendering, presence
-lib/client/net.ts    socket + server clock estimation
-lib/client/fx.ts     canvas particles / rings / motion trail
-lib/client/sound.ts  synthesized WebAudio sfx (muted by default)
-components/          React UI (mascot SVG, HUD)
+server/index.ts            Next.js + Socket.IO on one HTTP server
+server/world.ts            the authoritative room: physics loop, ownership,
+                           items, health, kill leaderboard, chat
+server/stats.ts            StatsStore interface (in-memory now; swap for Redis/DB)
+server/identity.ts         anonymous names/colors, coarse city from edge headers
+lib/physics.ts             shared deterministic disc physics (server AND client),
+                           with optional arena bounds, bumpers and tuning
+lib/protocol.ts            wire types, HP/damage constants, sync design notes
+lib/items.ts               item stats + shared knockback (multiplayer and daily)
+lib/daily.ts               seeded daily puzzle generator + share text
+lib/client/engine.ts       input, prediction, smoothing, rendering, presence;
+                           also runs offline in "solo mode" for Daily Claude
+lib/client/net.ts          socket + server clock estimation; OfflineNet for solo
+lib/client/dailyStore.ts   daily results, streaks and stats in localStorage
+lib/client/fx.ts           canvas particles / rings / item effects
+lib/client/sound.ts        synthesized WebAudio sfx (muted by default)
+lib/client/itemArt.ts      pixel-art item icons
+app/page.tsx               the multiplayer room
+app/daily/page.tsx         Daily Claude
+app/api/daily/route.ts     global daily stats (in memory)
+components/                React UI: mascot, HUD, health bar, death screen,
+                           inventory, chat
+components/daily/          Daily Claude game + results/share card
+scripts/bots.ts            fake players for load and feel testing
 ```
 
 **Sync model**
