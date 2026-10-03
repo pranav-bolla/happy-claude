@@ -1,7 +1,7 @@
 # HAPPY CLAUDE
 
-Play: https://happy-claude-production.up.railway.app/ · Daily puzzle:
-https://happy-claude-production.up.railway.app/daily
+Play: https://happy-claude-production.up.railway.app/
+Daily puzzle: https://happy-claude-production.up.railway.app/daily
 
 One object. One shared room. Everyone online fighting over it.
 
