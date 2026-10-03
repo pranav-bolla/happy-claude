@@ -54,12 +54,12 @@ export function DailyResults({
   const maxCount = Math.max(1, ...Object.values(stats.dist), stats.fails);
 
   const share = async () => {
-    const text = shareText(r, stats.streak, `${window.location.origin}/daily`);
+    const url = `${window.location.origin}/daily`;
     try {
       if (navigator.share && /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)) {
-        await navigator.share({ text });
+        await navigator.share({ text: shareText(r, stats.streak), url });
       } else {
-        await navigator.clipboard.writeText(text);
+        await navigator.clipboard.writeText(shareText(r, stats.streak, url));
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
       }

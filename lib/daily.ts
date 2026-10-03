@@ -185,11 +185,13 @@ export interface DailyResult {
   modifier: string;
 }
 
-export function shareText(r: DailyResult, streak: number, url: string): string {
+/** Omit `url` when the share sheet attaches it separately (that's what gets a link preview). */
+export function shareText(r: DailyResult, streak: number, url?: string): string {
   const head = `Daily Claude #${r.day} ${r.killed ? "💀" : "😇"} ${r.killed ? r.moves : "X"}/${r.maxMoves}`;
   const squares = r.grid.map((d, i) => moveSquare(d, r.killed && i === r.grid.length - 1)).join("");
-  const line3 = r.killed
-    ? `⏱ ${(r.ms / 1000).toFixed(1)}s${streak > 1 ? ` · 🔥 ${streak}` : ""}`
-    : `he survived with ${Math.ceil(r.hpLeft)} HP`;
-  return `${head}\n${r.modifier}\n${squares}\n${line3}\n${url}`;
+  const lines = [head, r.modifier, squares];
+  if (!r.killed) lines.push(`he survived with ${Math.ceil(r.hpLeft)} HP`);
+  if (streak > 1) lines.push(`🔥 ${streak} day streak`);
+  if (url) lines.push(url);
+  return lines.join("\n");
 }

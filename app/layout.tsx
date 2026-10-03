@@ -1,16 +1,25 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
+const SITE_URL =
+  process.env.SITE_URL ??
+  (process.env.RAILWAY_PUBLIC_DOMAIN
+    ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
+    : "https://happy-claude-production.up.railway.app");
+
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
   title: "WHIP CLAUDE",
   description: "a shared internet experiment. everyone online is fighting over the same Claude.",
   openGraph: {
     title: "WHIP CLAUDE",
     description: "one Claude. one room. everyone online is fighting over him.",
+    siteName: "WHIP CLAUDE",
+    url: "/",
     type: "website",
   },
   twitter: {
-    card: "summary",
+    card: "summary_large_image",
     title: "WHIP CLAUDE",
     description: "one Claude. one room. everyone online is fighting over him.",
   },
